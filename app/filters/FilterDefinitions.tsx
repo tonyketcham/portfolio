@@ -1,5 +1,6 @@
+import { AuraFilter } from '@/app/filters/AuraFilter';
 import { ChromaticAberrationFilter } from '@/app/filters/DistortionAnimationFilter';
-import { DragDisplacementFilter } from '@/app/filters/DragDisplacementFilter';
+// import { DragDisplacementFilter } from '@/app/filters/DragDisplacementFilter';
 import { FilmGrainFilter } from '@/app/filters/FilmGrainFilter';
 
 /**
@@ -11,6 +12,7 @@ export function FilterDefinitions() {
       <FilmGrainFilter />
       <ChromaticAberrationFilter />
       {/* <DragDisplacementFilter /> */}
+      <AuraFilter />
     </svg>
   );
 }

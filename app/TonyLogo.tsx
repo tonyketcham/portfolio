@@ -1,3 +1,5 @@
+import { cn } from '@/app/utils/css';
+
 export function TonyLogo({ className }: { className?: string }) {
   return (
     <svg
@@ -5,7 +7,10 @@ export function TonyLogo({ className }: { className?: string }) {
       data-name="Layer 2"
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 304.88 157.03"
-      className={className}
+      className={cn('pointer-events-none', className)}
+      style={{
+        filter: 'url(#aura)',
+      }}
       fill="currentColor"
       role="heading"
       aria-level={1}

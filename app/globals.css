@@ -5,4 +5,21 @@
 body {
   @apply bg-zinc-950 text-zinc-100;
   font-family: Arial, Helvetica, sans-serif;
+
+  --dot-size: 1px;
+  --gap-size: 16px;
+  --offset: calc(var(--gap-size) / 2);
+  --rotation-angle: 18deg;
+
+  background-image: linear-gradient(
+      var(--rotation-angle),
+      rgb(9 9 11) 60%,
+      transparent 100%
+    ),
+    radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent 70%),
+    radial-gradient(#333 var(--dot-size), transparent var(--dot-size)),
+    radial-gradient(#333 var(--dot-size), transparent var(--dot-size));
+  background-position: 0 0, center, var(--offset) var(--offset);
+  background-size: 100% 100%, cover, var(--gap-size) var(--gap-size),
+    var(--gap-size) var(--gap-size);
 }

@@ -6,7 +6,7 @@ import React from 'react';
  *
  * @param fps - Frames per second for the noise animation
  */
-export function ChromaticAberrationFilter({ fps = 6 }: { fps?: number }) {
+export function ChromaticAberrationFilter({ fps = 24 }: { fps?: number }) {
   // Generate random seeds for each 'frame' (1 second of animation)
   const seedCount = fps;
   const seeds = Array.from({ length: seedCount }, () =>
@@ -14,14 +14,14 @@ export function ChromaticAberrationFilter({ fps = 6 }: { fps?: number }) {
   );
   const seedValues = seeds.join(';');
 
-  const durationSeconds = '1s'; // 1-second loop
+  const durationSeconds = '4s'; // 1-second loop
 
   return (
     <filter id="chromaticAberrationFilter">
       {/* 1) Generate animated fractal noise */}
       <feTurbulence
         type="fractalNoise"
-        baseFrequency="0.05"
+        baseFrequency=" 0.01 0.025"
         numOctaves={1}
         result="noise"
       >
@@ -51,7 +51,7 @@ export function ChromaticAberrationFilter({ fps = 6 }: { fps?: number }) {
         in="redChannel"
         in2="noise"
         xChannelSelector="R"
-        yChannelSelector="G"
+        yChannelSelector="R"
         scale="8"
         result="redDisplaced"
       />
