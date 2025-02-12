@@ -1,11 +1,8 @@
 'use client';
 
-import { TonyLogo } from '@/app/TonyLogo';
-import { TransformBounds } from '@/app/TransformBounds';
-import { Video } from '@/app/media/Video';
-import Amanita from '@/public/Amanita.webp';
-import { motion } from 'motion/react';
 import { useCallback, useRef, useState } from 'react';
+import Header from './components/Header';
+import Overview from './components/Overview';
 
 export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -22,43 +19,14 @@ export default function Home() {
   return (
     <div
       ref={pageRef}
-      className="relative min-h-screen font-[family-name:var(--font-geist-sans)] overflow-hidden"
+      className="relative min-h-screen font-[family-name:var(--font-chivo-mono)] overflow-hidden"
       style={{
         filter: pageFilter,
       }}
     >
-      <div className="mx-auto max-w-screen-2xl px-6 pt-14">
-        <motion.header className="relative flex flex-row justify-end">
-          <div className="absolute left-56 inset-y-0 my-auto h-fit">
-            <TransformBounds
-              className="relative h-fit"
-              renderDimensionFeedbackOnHover={
-                <>
-                  he <span className="opacity-70">/</span> they
-                </>
-              }
-            >
-              <Video
-                src="/Amanita.mp4"
-                wrapperClassName="max-w-[425px] rounded-[158px] overflow-hidden"
-                className="object-cover aspect-square"
-                poster={{
-                  src: '/Amanita.webp',
-                  data: Amanita,
-                }}
-                eager
-              />
-              <button
-                type="button"
-                onClick={handleMushroomClick}
-                className="absolute right-[14%] bottom-[18%] pointer-events-auto w-2/6 h-1/4 rounded-full z-[51]"
-                aria-label="Mushroom mode"
-              />
-            </TransformBounds>
-          </div>
-
-          <TonyLogo className="inline-block w-[85%] text-white" />
-        </motion.header>
+      <div className="mx-auto max-w-screen-2xl px-6 pt-20 lg:pt-14 space-y-24 lg:space-y-0">
+        <Header handleMushroomClick={handleMushroomClick} />
+        <Overview />
         {/* <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
           <p>Hi</p>
         </main>

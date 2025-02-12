@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body {
-  @apply bg-zinc-950 text-zinc-100;
+  @apply bg-zinc-950 text-zinc-100 selection:bg-blue-500 selection:text-white;
   font-family: Arial, Helvetica, sans-serif;
 
   --dot-size: 1px;
