@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Chivo_Mono, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { FilterDefinitions } from '@/app/filters/FilterDefinitions';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -35,6 +36,7 @@ export default function RootLayout({
       >
         {children}
         <FilterDefinitions />
+        <SpeedInsights />
       </body>
     </html>
   );
