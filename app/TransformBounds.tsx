@@ -104,14 +104,14 @@ export function TransformBounds({
 
         {/* Dotted lines extending to parent boundaries */}
         <motion.div
-          className="z-50 pointer-events-none opacity-0 group-hover:opacity-100"
+          className="pointer-events-none opacity-0 group-hover:opacity-100"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.6 }}
         >
           {showContainmentBounds.left && (
             <div
-              className="absolute left-0 border-t border-dashed border-blue-500 group-hover:border-blue-400"
+              className="absolute z-50 left-0 border-t border-dashed border-blue-500 group-hover:border-blue-400"
               style={{
                 width: `${parentBounds.width - bounds.width}px`,
                 transform: `translateY(-${bounds.height / 2}px) translateX(-${
@@ -123,7 +123,7 @@ export function TransformBounds({
 
           {showContainmentBounds.right && (
             <div
-              className="absolute right-0 border-t border-dashed border-blue-500 group-hover:border-blue-400"
+              className="absolute z-50 right-0 border-t border-dashed border-blue-500 group-hover:border-blue-400"
               style={{
                 width: `${parentBounds.width - bounds.width}px`,
                 transform: `translateY(${bounds.height / 2}px) translateX(${
@@ -135,7 +135,7 @@ export function TransformBounds({
 
           {showContainmentBounds.top && (
             <div
-              className="absolute top-0 border-l border-dashed border-blue-500 group-hover:border-blue-400"
+              className="absolute z-50 top-0 border-l border-dashed border-blue-500 group-hover:border-blue-400"
               style={{
                 height: `${parentBounds.height - bounds.height}px`,
                 transform: `translateX(${bounds.width / 2}px) translateY(-${
@@ -147,7 +147,7 @@ export function TransformBounds({
 
           {showContainmentBounds.bottom && (
             <div
-              className="absolute bottom-0 border-l border-dashed border-blue-500 group-hover:border-blue-400"
+              className="absolute z-50 bottom-0 border-l border-dashed border-blue-500 group-hover:border-blue-400"
               style={{
                 height: `${parentBounds.height - bounds.height}px`,
                 transform: `translateX(${bounds.width / 2}px) translateY(${

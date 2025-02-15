@@ -152,7 +152,7 @@ export function Video({
               priority={eager}
               width={10}
               height={10}
-              className={cn('w-full', className)}
+              className={cn('w-full pointer-events-none', className)}
               style={{ imageRendering: 'pixelated' }}
             />
           </motion.div>
