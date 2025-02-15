@@ -6,6 +6,7 @@ import { useIntersectionObserver } from 'usehooks-ts';
 import Image from 'next/image';
 import { cn } from '@/app/utils/css';
 import type { StaticImport } from 'next/dist/shared/lib/get-img-props';
+import { useAreFilterDefinitionsSupported } from '@/app/filters/SupportedFilterDefinitionsProvider';
 
 interface VideoProps {
   src: string;
@@ -40,6 +41,7 @@ export function Video({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [showPoster, setShowPoster] = useState(false);
+  const areFiltersSupported = useAreFilterDefinitionsSupported();
 
   // Detect when video is in viewport
   const { isIntersecting, ref: intersectionRef } = useIntersectionObserver({
@@ -115,7 +117,8 @@ export function Video({
       className={cn('relative', wrapperClassName)}
       style={{
         aspectRatio: width && height ? `${width}/${height}` : undefined,
-        filter: `contrast(1.1) url(#aura)`,
+        filter: `contrast(1.1) ${areFiltersSupported ? 'url(#aura)' : ''}`,
+        backdropFilter: `${areFiltersSupported ? 'url(#aura)' : 'none'}`,
       }}
     >
       <video

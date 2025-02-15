@@ -90,18 +90,21 @@ export function TransformBounds({
   return (
     <>
       <motion.div
+        drag
+        dragConstraints={containerRef}
         className={cn('relative group', className)}
         ref={containerRef}
         initial={{ y: -8, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.3 }}
+        whileTap={{ cursor: 'grabbing' }}
       >
         {/* Child content */}
         {children}
 
         {/* Dotted lines extending to parent boundaries */}
         <motion.div
-          className="z-50 pointer-events-none"
+          className="z-50 pointer-events-none opacity-0 group-hover:opacity-100"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.6 }}

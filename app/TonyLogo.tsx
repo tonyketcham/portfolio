@@ -1,6 +1,9 @@
+import { useAreFilterDefinitionsSupported } from '@/app/filters/SupportedFilterDefinitionsProvider';
 import { cn } from '@/app/utils/css';
 
 export function TonyLogo({ className }: { className?: string }) {
+  const areFiltersSupported = useAreFilterDefinitionsSupported();
+
   return (
     <svg
       id="Layer_2"
@@ -9,7 +12,7 @@ export function TonyLogo({ className }: { className?: string }) {
       viewBox="0 0 304.88 157.03"
       className={cn('pointer-events-none', className)}
       style={{
-        filter: 'url(#aura)',
+        filter: areFiltersSupported ? 'url(#aura)' : 'none',
       }}
       fill="currentColor"
       role="heading"

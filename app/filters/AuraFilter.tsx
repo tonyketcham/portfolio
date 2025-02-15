@@ -2,10 +2,10 @@ export function AuraFilter() {
   return (
     <filter
       id="aura"
-      x="-200%"
-      y="-200%"
-      width="400%"
-      height="400%"
+      x="-400%"
+      y="-400%"
+      width="800%"
+      height="800%"
       colorInterpolationFilters="sRGB"
       primitiveUnits="objectBoundingBox"
     >
@@ -13,8 +13,8 @@ export function AuraFilter() {
 
       <feTurbulence
         type="fractalNoise"
-        baseFrequency={1.34}
-        numOctaves="1"
+        baseFrequency={3.5}
+        numOctaves="2"
         stitchTiles="stitch"
         patternTransform="scale(1)"
       />
@@ -22,7 +22,7 @@ export function AuraFilter() {
       <feDisplacementMap in="in" scale={0.3} yChannelSelector="B" />
       <feComponentTransfer>
         {/* Dial back the opacity with a more pronounced fall-off */}
-        <feFuncA type="table" tableValues="0 0.1 0.3 0.5 0.7 1" />
+        <feFuncA type="table" tableValues="0 0.1 0.51 1 1" />
       </feComponentTransfer>
 
       {/* Composite the original underlying element back on top so the effect is behind */}
