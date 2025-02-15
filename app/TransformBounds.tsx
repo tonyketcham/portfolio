@@ -126,7 +126,7 @@ export function TransformBounds({
               className="absolute z-50 right-0 border-t border-dashed border-blue-500 group-hover:border-blue-400"
               style={{
                 width: `${parentBounds.width - bounds.width}px`,
-                transform: `translateY(${bounds.height / 2}px) translateX(${
+                transform: `translateY(-${bounds.height / 2}px) translateX(${
                   parentBounds.width - bounds.width
                 }px)`,
               }}
