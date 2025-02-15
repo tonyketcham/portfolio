@@ -177,10 +177,10 @@ export function TransformBounds({
           transition={{ duration: 0.2, delay: 0.2 }}
         >
           {/* Corner indicators */}
-          <div className="absolute -left-1 -top-1 h-2 w-2 rounded-sm bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
-          <div className="absolute -right-1 -top-1 h-2 w-2 rounded-sm bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
-          <div className="absolute -left-1 -bottom-1 h-2 w-2 rounded-sm bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
-          <div className="absolute -right-1 -bottom-1 h-2 w-2 rounded-sm bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
+          <div className="absolute -left-1 -top-1 h-2 w-2 rounded-xs bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
+          <div className="absolute -right-1 -top-1 h-2 w-2 rounded-xs bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
+          <div className="absolute -left-1 -bottom-1 h-2 w-2 rounded-xs bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
+          <div className="absolute -right-1 -bottom-1 h-2 w-2 rounded-xs bg-white border-2 border-blue-500 group-hover:border-blue-400 z-50" />
         </motion.div>
 
         {/* Dimensions feedback */}
@@ -194,11 +194,11 @@ export function TransformBounds({
             >
               <motion.div
                 layout
-                className="w-fit bg-blue-500 text-white text-xs mx-auto px-1 py-px rounded select-none tabular-nums"
+                className="w-fit bg-blue-500 text-white text-xs mx-auto px-1 py-px rounded-sm select-none tabular-nums"
               >
                 <div
                   className={cn(
-                    'flex-shrink-0 hidden',
+                    'shrink-0 hidden',
                     Boolean(renderDimensionFeedbackOnHover) &&
                       'group-hover:flex'
                   )}
@@ -207,7 +207,7 @@ export function TransformBounds({
                 </div>
                 <div
                   className={cn(
-                    'flex flex-shrink-0',
+                    'flex shrink-0',
                     Boolean(renderDimensionFeedbackOnHover) &&
                       'group-hover:hidden'
                   )}

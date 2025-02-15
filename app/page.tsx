@@ -24,7 +24,7 @@ export default function Home() {
         filter: pageFilter,
       }}
     >
-      <div className="mx-auto max-w-screen-2xl px-6 pt-20 lg:pt-14 space-y-24 lg:space-y-0">
+      <div className="mx-auto max-w-(--breakpoint-2xl) px-6 pt-20 lg:pt-14 space-y-24 lg:space-y-0">
         <Header handleMushroomClick={handleMushroomClick} />
         <Overview />
         {/* <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">

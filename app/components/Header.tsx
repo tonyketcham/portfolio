@@ -37,7 +37,7 @@ export default function Header({
           <button
             type="button"
             onClick={handleMushroomClick}
-            className="absolute right-[14%] bottom-[18%] pointer-events-auto w-2/6 h-1/4 rounded-full z-[51]"
+            className="absolute right-[14%] bottom-[18%] pointer-events-auto w-2/6 h-1/4 rounded-full z-51"
             aria-label="Mushroom mode"
           />
         </TransformBounds>
