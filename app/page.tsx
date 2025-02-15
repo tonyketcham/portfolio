@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import Header from './components/Header';
 import Overview from './components/Overview';
+import { Editor } from '@/app/editor/Editor';
 
 export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -27,6 +28,9 @@ export default function Home() {
       <div className="mx-auto max-w-(--breakpoint-2xl) px-6 pt-20 lg:pt-14 space-y-24 lg:space-y-0">
         <Header handleMushroomClick={handleMushroomClick} />
         <Overview />
+        <main>
+          <Editor />
+        </main>
         {/* <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
           <p>Hi</p>
         </main>

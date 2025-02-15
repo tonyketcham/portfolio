@@ -46,3 +46,11 @@ body {
   background-size: 100% 100%, cover, var(--gap-size) var(--gap-size),
     var(--gap-size) var(--gap-size);
 }
+
+.bg-dot {
+  background-image: radial-gradient(
+    #333 var(--dot-size),
+    transparent var(--dot-size)
+  );
+  background-size: var(--gap-size) var(--gap-size);
+}
