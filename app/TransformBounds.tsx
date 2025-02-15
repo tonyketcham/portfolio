@@ -92,7 +92,7 @@ export function TransformBounds({
       <motion.div
         drag
         dragConstraints={containerRef}
-        className={cn('relative group', className)}
+        className={cn('relative group cursor-grab', className)}
         ref={containerRef}
         initial={{ y: -8, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -160,7 +160,7 @@ export function TransformBounds({
 
         {/* Bounding box */}
         <motion.div
-          className="absolute inset-0 border border-blue-500 group-hover:border-blue-400 z-50"
+          className="absolute inset-0 border border-blue-500 group-hover:border-blue-400 z-50 pointer-events-none"
           style={{
             width: bounds.width,
             height: bounds.height,
@@ -220,6 +220,11 @@ export function TransformBounds({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* TODO: Implement rotation handle */}
+        {/* <div className="absolute -top-6 inset-x-0">
+          <div className="mx-auto w-3 h-3 bg-blue-200 rounded-2xl border-2 border-blue-500 group-hover:border-blue-400 cursor-pointer" />
+        </div> */}
       </motion.div>
     </>
   );
