@@ -71,6 +71,8 @@ export function InteractiveCard({
           bottom: isActive,
         }}
         showTransformHandles={isSelected}
+        dragMomentum={false}
+        viewport={{ once: true }}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={() => setIsDragging(false)}
         onPointerDown={() => onPointerDown(title)}
