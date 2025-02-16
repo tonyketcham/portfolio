@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import Header from './components/Header';
 import Overview from './components/Overview';
 import { Editor } from '@/app/editor/Editor';
+import { PortalReceiver } from '@/app/utils/InPortal';
 
 export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -74,6 +75,7 @@ export default function Home() {
             Go to nextjs.org →
           </a>
         </footer> */}
+        <PortalReceiver />
       </div>
     </div>
   );

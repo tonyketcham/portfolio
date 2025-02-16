@@ -10,11 +10,13 @@ import {
   type PropsWithChildren,
   type ReactNode,
   forwardRef,
+  type ComponentProps,
 } from 'react';
 import { useMergeRefs } from 'rooks';
 
-interface TransformBoundsProps {
+type TransformBoundsProps = {
   dragContainer?: React.RefObject<HTMLDivElement | null>;
+  initialPosition?: { left: number; top: number };
   showContainmentBounds?: Partial<{
     left: boolean;
     top: boolean;
@@ -26,8 +28,7 @@ interface TransformBoundsProps {
   onDragStart?: () => void;
   onDragEnd?: () => void;
   onPointerDown?: () => void;
-  className?: string;
-}
+} & ComponentProps<typeof motion.div>;
 
 /**
  * Mimics the transform bounding box typical in design tools when an element is selected.
@@ -40,6 +41,7 @@ export const TransformBounds = forwardRef<
   (
     {
       dragContainer,
+      initialPosition = { left: 0, top: 0 },
       showContainmentBounds = {
         left: true,
         top: true,
@@ -53,6 +55,7 @@ export const TransformBounds = forwardRef<
       onPointerDown,
       className,
       children,
+      ...props
     }: PropsWithChildren<TransformBoundsProps>,
     ref
   ) => {
@@ -119,10 +122,15 @@ export const TransformBounds = forwardRef<
           onDragEnd={onDragEnd}
           onPointerDown={onPointerDown}
           className={cn('relative group cursor-grab', className)}
+          style={{
+            left: `${initialPosition.left}%`,
+            top: `${initialPosition.top}%`,
+          }}
           initial={{ y: -8, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.3 }}
           whileTap={{ cursor: 'grabbing' }}
+          {...props}
         >
           {/* Child content */}
           {children}
