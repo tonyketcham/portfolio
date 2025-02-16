@@ -127,7 +127,8 @@ export const TransformBounds = forwardRef<
             top: `${initialPosition.top}%`,
           }}
           initial={{ y: -8, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
+          animate={{ y: 0 }}
+          whileInView={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
           whileTap={{ cursor: 'grabbing' }}
           {...props}

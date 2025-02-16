@@ -34,7 +34,7 @@ const Content = [
         <p>Founding team engineer of a next generation design workbench</p>
         <Link
           href="https://modyfi.com"
-          className="text-blue-500 rounded-sm"
+          className="text-blue-500 hover:text-blue-400 rounded-sm float-end"
           target="#blank"
         >
           modyfi.com/
@@ -65,13 +65,13 @@ const Content = [
   },
   {
     id: generateId('RESET Presents'),
-    title: 'RESSET Presents',
+    title: 'RESET Presents',
     description: (
       <div className="space-y-1">
         <p>Presence for Chicago&apos;s premier underground event organizer</p>
         <Link
           href="https://resetpresents.com"
-          className="text-blue-500 rounded-sm"
+          className="text-blue-500 hover:text-blue-400 rounded-sm float-end"
           target="#blank"
         >
           resetpresents.com/
@@ -96,26 +96,6 @@ const Content = [
         <div>Hello</div>
         <div>Hello</div>
         <div>Hello</div>
-      </div>
-    ),
-  },
-  {
-    id: generateId('Figma'),
-    title: 'Figma',
-    description: 'A design tool',
-    component: (
-      <div className="p-1">
-        <div>Figma</div>
-      </div>
-    ),
-  },
-  {
-    id: generateId('Sketch'),
-    title: 'Sketch',
-    description: 'A design tool',
-    component: (
-      <div className="p-1">
-        <div>Sketch</div>
       </div>
     ),
   },
