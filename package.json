@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--inspect' next dev --turbopack",
+    "dev": "NODE_OPTIONS=--inspect next dev --turbopack & npx next-video sync -w",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -14,8 +14,10 @@
     "@vercel/speed-insights": "1.2.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
+    "media-chrome": "4.5.0",
     "motion": "12.4.2",
     "next": "15.1.7",
+    "next-video": "2.1.0",
     "randoma": "2.0.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",

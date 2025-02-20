@@ -2,17 +2,9 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Ensure you are signed in with Vercel's CLI `vercel login` with access to the project.
+2. Run `vercel env pull .env.development.local` to make the latest environment variables available to your project locally.
+3. Start the app with `pnpm dev`
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
