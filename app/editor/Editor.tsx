@@ -10,7 +10,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { PortalId } from '@/app/utils/InPortal';
 import { Video } from '@/app/media/Video';
-import ModyfiMotionVideo from '../../public/work/Modyfi_Motion_1.webp';
+import ModyfiMotionVideo from '@/videos/Modyfi_Motion_1.mp4';
+import p5SvelteVideo from '@/videos/p5_svelte.webm';
 
 function remap(
   value: number,
@@ -59,17 +60,7 @@ const Content: ContentItem[] = [
           </div>
         ),
         component: (
-          <>
-            <Video
-              className="w-full max-w-2xl"
-              src="/work/Modyfi_Motion_1.mp4"
-              poster={{
-                src: '/work/Modyfi_Motion_1.webp',
-                data: ModyfiMotionVideo,
-              }}
-              eager
-            />
-          </>
+          <Video className="w-full max-w-2xl" src={ModyfiMotionVideo} eager />
         ),
       },
       {
@@ -118,7 +109,7 @@ const Content: ContentItem[] = [
           <Image
             src={ResetPresents}
             alt="Reset Presents"
-            className="w-full max-w-xl select-none pointer-events-none"
+            className="w-full max-w-md select-none pointer-events-none"
           />
         ),
       },
@@ -131,7 +122,7 @@ const Content: ContentItem[] = [
       {
         id: 'p5-Svelte',
         description: 'Easily add p5 sketches to a Svelte project 🍛 🌱',
-        component: <div className="p-2"></div>,
+        component: <Video className="w-full max-w-xs" src={p5SvelteVideo} />,
       },
     ],
   },

@@ -3,7 +3,7 @@ import { TransformBounds } from '@/app/TransformBounds';
 import { Video } from '@/app/media/Video';
 import { borderHighlightClasses } from '@/app/utils/borderHighlight';
 import { cn } from '@/app/utils/css';
-import Amanita from '@/public/Amanita.webp';
+import AmanitaVideo from '@/videos/Amanita.mp4';
 
 export default function Header({
   handleMushroomClick,
@@ -22,16 +22,12 @@ export default function Header({
           }
         >
           <Video
-            src="/Amanita.mp4"
+            src={AmanitaVideo}
             wrapperClassName={cn(
               'max-w-[300px] md:max-w-[425px] rounded-[158px] overflow-hidden',
               borderHighlightClasses({ group: true })
             )}
-            className="object-cover aspect-square"
-            poster={{
-              src: '/Amanita.webp',
-              data: Amanita,
-            }}
+            className="w-auto h-auto object-cover aspect-square"
             eager
           />
           <button
