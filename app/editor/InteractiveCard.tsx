@@ -1,3 +1,4 @@
+import type { MediaItem } from '@/app/editor/Editor';
 import { TransformBounds } from '@/app/TransformBounds';
 import { cn } from '@/app/utils/css';
 import { InPortal } from '@/app/utils/InPortal';
@@ -8,7 +9,7 @@ import {
   useFloating,
   useMergeRefs,
 } from '@floating-ui/react';
-import { useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useHover } from 'usehooks-ts';
 
 export const interactiveCardTypeAttr = 'editor.card';
@@ -19,9 +20,9 @@ export type InteractiveCardProps = {
   initialPosition?: { left: number; top: number };
   title: string;
   description?: string;
-  selected: string | null;
-  onPointerDown: (id: string) => void;
-  renderDetails?: React.ReactNode;
+  selected: { id: string; mediaId: string } | null;
+  onPointerDown: (id: string, mediaId: string) => void;
+  media?: MediaItem[];
 };
 
 export function InteractiveCard({
@@ -31,14 +32,18 @@ export function InteractiveCard({
   title,
   selected,
   onPointerDown,
-  renderDetails,
-  children,
-}: PropsWithChildren<InteractiveCardProps>) {
+  media,
+}: InteractiveCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const isHovered = useHover(ref as React.RefObject<HTMLElement>);
   const [isDragging, setIsDragging] = useState(false);
-  const isSelected = useMemo(() => selected === title, [selected, title]);
+  const isSelected = useMemo(() => selected?.id === id, [selected?.id, id]);
   const isActive = isHovered || isDragging;
+  const [primaryMedia, setPrimaryMedia] = useState<MediaItem>(media![0]);
+  const secondaryMedia = useMemo(
+    () => media?.filter((m) => m.id !== primaryMedia.id),
+    [media, primaryMedia]
+  );
 
   const { refs, floatingStyles } = useFloating({
     whileElementsMounted: autoUpdate,
@@ -75,9 +80,9 @@ export function InteractiveCard({
         viewport={{ once: true }}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={() => setIsDragging(false)}
-        onPointerDown={() => onPointerDown(title)}
+        onPointerDown={() => onPointerDown(id, primaryMedia.id)}
         className={cn(
-          'w-fit',
+          'absolute w-fit',
           isSelected && 'z-10',
           selected && !isSelected && 'brightness-50 !opacity-90'
         )}
@@ -87,17 +92,22 @@ export function InteractiveCard({
         <h1 className="absolute -top-6 w-max text-sm text-rock-gray-400">
           {title}
         </h1>
-        {children}
+        {primaryMedia.component}
       </TransformBounds>
 
-      {renderDetails && isSelected && (
+      {primaryMedia.description && isSelected && (
         <InPortal>
           <div
             ref={refs.setFloating}
             className="max-w-sm bg-zinc-950/80 backdrop-blur border border-blue-400 rounded px-2 py-1 text-sm text-zinc-200 font-[family-name:var(--font-chivo-mono)]"
             style={{ ...floatingStyles, filter: 'url(#aura)' }}
           >
-            <div>{renderDetails}</div>
+            <div>{primaryMedia.description}</div>
+            {secondaryMedia?.map((m) => (
+              <div key={m.id} onClick={() => setPrimaryMedia(m)}>
+                {m.component}
+              </div>
+            ))}
           </div>
         </InPortal>
       )}

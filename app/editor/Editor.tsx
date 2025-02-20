@@ -9,6 +9,8 @@ import ResetPresents from '../../public/work/Reset Presents - Events Page-min.pn
 import Image from 'next/image';
 import Link from 'next/link';
 import { PortalId } from '@/app/utils/InPortal';
+import { Video } from '@/app/media/Video';
+import ModyfiMotionVideo from '../../public/work/Modyfi_Motion_1.webp';
 
 function remap(
   value: number,
@@ -25,79 +27,131 @@ function generateId(title: string) {
   return `${interactiveCardTypeAttr}.${recasedTitle}`;
 }
 
-const Content = [
+export interface MediaItem {
+  id: string;
+  description?: string | React.ReactNode;
+  component: React.ReactNode;
+}
+
+interface ContentItem {
+  id: string;
+  title: string;
+  media: MediaItem[];
+}
+
+const Content: ContentItem[] = [
   {
     id: generateId('Modyfi'),
     title: 'Modyfi',
-    description: (
-      <div className="space-y-1">
-        <p>Founding team engineer of a next generation design workbench</p>
-        <Link
-          href="https://modyfi.com"
-          className="text-blue-500 hover:text-blue-400 rounded-sm float-end"
-          target="#blank"
-        >
-          modyfi.com/
-        </Link>
-      </div>
-    ),
-    component: (
-      <video
-        loop
-        muted
-        preload="none"
-        autoPlay
-        className="w-full max-w-2xl"
-        poster="https://cdn.prod.website-files.com/642ae6699603ff7cff7d35ae/6597fb84ecd515a2a779433f_Motion_1.webp"
-      >
-        <source
-          data-src="https://modyfi-content.s3.us-east-1.amazonaws.com/website/videos/MotionNewUI2.mp4"
-          type="video/webm"
-          src="https://modyfi-content.s3.us-east-1.amazonaws.com/website/videos/MotionNewUI2.mp4"
-        />
-        <source
-          data-src="https://modyfi-content.s3.us-east-1.amazonaws.com/website/videos/MotionNewUI2.mp4"
-          type="video/mp4"
-          src="https://modyfi-content.s3.us-east-1.amazonaws.com/website/videos/MotionNewUI2.mp4"
-        />
-      </video>
-    ),
+    media: [
+      {
+        id: 'modyfi',
+        description: (
+          <div className="space-y-1">
+            <p>Founding team engineer of a next generation design workbench</p>
+            <Link
+              href="https://modyfi.com"
+              className="text-blue-500 hover:text-blue-400 rounded-sm float-end"
+              target="#blank"
+            >
+              modyfi.com/
+            </Link>
+          </div>
+        ),
+        component: (
+          <>
+            <Video
+              className="w-full max-w-2xl"
+              src="/work/Modyfi_Motion_1.mp4"
+              poster={{
+                src: '/work/Modyfi_Motion_1.webp',
+                data: ModyfiMotionVideo,
+              }}
+              eager
+            />
+          </>
+        ),
+      },
+      {
+        id: 'modyfi-2',
+        description: (
+          <div className="space-y-1">
+            <p>Beep Boop</p>
+            <Link
+              href="https://modyfi.com"
+              className="text-blue-500 hover:text-blue-400 rounded-sm float-end"
+              target="#blank"
+            >
+              modyfi.com/welcome
+            </Link>
+          </div>
+        ),
+        component: (
+          <>
+            <p className="w-full max-w-2xl">Minky Hut Jr.</p>
+          </>
+        ),
+      },
+    ],
   },
   {
     id: generateId('RESET Presents'),
     title: 'RESET Presents',
-    description: (
-      <div className="space-y-1">
-        <p>Presence for Chicago&apos;s premier underground event organizer</p>
-        <Link
-          href="https://resetpresents.com"
-          className="text-blue-500 hover:text-blue-400 rounded-sm float-end"
-          target="#blank"
-        >
-          resetpresents.com/
-        </Link>
-      </div>
-    ),
-    component: (
-      <Image
-        src={ResetPresents}
-        alt="Reset Presents"
-        className="w-full max-w-xl select-none pointer-events-none"
-      />
-    ),
+    media: [
+      {
+        id: 'reset-presents',
+        description: (
+          <div className="space-y-1">
+            <p>
+              Presence for Chicago&apos;s premier underground event organizer
+            </p>
+            <Link
+              href="https://resetpresents.com"
+              className="text-blue-500 hover:text-blue-400 rounded-sm float-end"
+              target="#blank"
+            >
+              resetpresents.com/
+            </Link>
+          </div>
+        ),
+        component: (
+          <Image
+            src={ResetPresents}
+            alt="Reset Presents"
+            className="w-full max-w-xl select-none pointer-events-none"
+          />
+        ),
+      },
+    ],
+  },
+  {
+    id: generateId('p5-Svelte'),
+    title: 'p5-Svelte',
+    media: [
+      {
+        id: 'p5-Svelte',
+        description: 'Easily add p5 sketches to a Svelte project 🍛 🌱',
+        component: <div className="p-2"></div>,
+      },
+    ],
   },
   {
     id: generateId('Vague Data'),
     title: 'Vague Data',
-    description: 'A data tool',
-    component: (
-      <div className="p-2">
-        <div>Hello</div>
-        <div>Hello</div>
-        <div>Hello</div>
-        <div>Hello</div>
-      </div>
-    ),
+    media: [
+      {
+        id: 'vague-data',
+        description: 'A data tool',
+        component: (
+          <div className="p-2">
+            <div>Hello</div>
+            <div>Hello</div>
+            <div>Hello</div>
+            <div>Hello</div>
+          </div>
+        ),
+      },
+    ],
   },
 ];
 
@@ -120,11 +174,14 @@ export function Editor() {
     setSelected(null);
   });
 
-  const [selected, setSelected] = React.useState<string | null>(null);
+  const [selected, setSelected] = React.useState<{
+    id: string;
+    mediaId: string;
+  } | null>(null);
 
   const handleSelection = useCallback(
-    (title: string) => {
-      setSelected(title);
+    (selectedId: string, selectedMediaId: string) => {
+      setSelected({ id: selectedId, mediaId: selectedMediaId });
     },
     [setSelected]
   );
@@ -193,10 +250,8 @@ export function Editor() {
           onPointerDown={handleSelection}
           dragContainer={ref}
           title={content.title}
-          renderDetails={content.description}
-        >
-          {content.component}
-        </InteractiveCard>
+          media={content.media}
+        />
       ))}
     </section>
   );

@@ -34,19 +34,26 @@ export function Video({
   loop = true,
   muted = true,
   eager = false,
-  autoPlay = true,
   wrapperClassName,
   className,
 }: VideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
-  const [showPoster, setShowPoster] = useState(false);
   const areFiltersSupported = useAreFilterDefinitionsSupported();
 
   // Detect when video is in viewport
-  const { isIntersecting, ref: intersectionRef } = useIntersectionObserver({
+  const { ref: intersectionRef } = useIntersectionObserver({
     threshold: 0,
     initialIsIntersecting: eager,
+    onChange(isIntersecting) {
+      const video = videoRef.current;
+
+      if (video && isIntersecting) {
+        video.play();
+      } else if (video && !isIntersecting) {
+        video.pause();
+      }
+    },
   });
 
   // Handle muted attribute for video element
@@ -56,60 +63,6 @@ export function Video({
       videoRef.current.defaultMuted = muted;
     }
   }, [muted]);
-
-  // Handle video autoplay when in viewport
-  useEffect(() => {
-    if (!autoPlay || !videoRef.current || !isVideoLoaded) return;
-
-    let isCancelled = false;
-    let playPromise: Promise<void> | null = null;
-
-    const handleVideoPlayback = async () => {
-      const video = videoRef.current;
-      if (!video || isCancelled) return;
-
-      try {
-        if (isIntersecting && video.paused) {
-          playPromise = video.play();
-          await playPromise;
-        } else if (!isIntersecting && !video.paused) {
-          if (playPromise) await playPromise;
-          video.pause();
-        }
-      } catch (error) {
-        if (!isCancelled) {
-          console.error(
-            `Error ${video.paused ? 'playing' : 'pausing'} video:`,
-            src,
-            error
-          );
-        }
-      }
-    };
-
-    void handleVideoPlayback();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [isIntersecting, autoPlay, src, isVideoLoaded]);
-
-  // Delay showing the poster
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    if (!isVideoLoaded) {
-      setShowPoster(true);
-    } else {
-      timeoutId = setTimeout(() => {
-        setShowPoster(false);
-      }, 10);
-    }
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [isVideoLoaded]);
 
   return (
     <div
@@ -123,21 +76,18 @@ export function Video({
     >
       <video
         ref={videoRef}
-        style={{ visibility: isVideoLoaded ? 'visible' : 'hidden' }}
-        onCanPlay={() => setIsVideoLoaded(true)}
+        onPlaying={() => setIsVideoLoaded(true)}
         src={src}
-        poster={poster.src}
         width={width}
         height={height}
         className={className}
         playsInline
         preload="auto"
         muted={muted}
-        autoPlay={eager}
         loop={loop}
       />
       <AnimatePresence>
-        {poster && showPoster && (
+        {poster && !isVideoLoaded && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
