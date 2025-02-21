@@ -5,6 +5,7 @@ import { InPortal } from '@/app/utils/InPortal';
 import {
   autoPlacement,
   autoUpdate,
+  hide,
   offset,
   useFloating,
   useMergeRefs,
@@ -45,7 +46,14 @@ export function InteractiveCard({
     [media, primaryMedia]
   );
 
+  // Floating UI's inbuilt ref does not cause changes to the reference component to reactively update and can cause the floating element to become orphaned on swap
+  // This bit of state ensures that swapping the primary media will update the floating UI anchor to follow the new media component
+  const [reference, setReference] = useState<HTMLElement | null>(null);
   const { refs, floatingStyles } = useFloating({
+    strategy: 'fixed',
+    elements: {
+      reference,
+    },
     whileElementsMounted: autoUpdate,
     middleware: [
       offset(({ placement }) => {
@@ -58,10 +66,11 @@ export function InteractiveCard({
         };
       }),
       autoPlacement(),
+      hide(),
     ],
   });
 
-  const mergedRef = useMergeRefs([ref, refs.setReference]);
+  const mergedRef = useMergeRefs([ref, setReference]);
 
   return (
     <>
