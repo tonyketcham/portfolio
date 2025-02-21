@@ -60,7 +60,12 @@ const Content: ContentItem[] = [
           </div>
         ),
         component: (
-          <Video className="w-full max-w-2xl" src={ModyfiMotionVideo} eager />
+          <Video
+            src={ModyfiMotionVideo}
+            aspectRatio={2161 / 1448}
+            className="w-full max-w-2xl"
+            eager
+          />
         ),
       },
       {
@@ -122,7 +127,13 @@ const Content: ContentItem[] = [
       {
         id: 'p5-Svelte',
         description: 'Easily add p5 sketches to a Svelte project 🍛 🌱',
-        component: <Video className="w-full max-w-xs" src={p5SvelteVideo} />,
+        component: (
+          <Video
+            src={p5SvelteVideo}
+            aspectRatio={1454 / 1054}
+            className="w-full max-w-xs"
+          />
+        ),
       },
     ],
   },
@@ -214,7 +225,7 @@ export function Editor() {
   useHotkeys('alt+shift+d', dumpCurrentPosition);
 
   return (
-    <section ref={ref} className="relative min-h-[720px] h-svh bg-dot">
+    <section ref={ref} className="flex relative min-h-[720px] h-svh bg-dot">
       {/* Click to de-select */}
       <div className="absolute inset-0" onClick={() => setSelected(null)} />
       {/* Layers panel */}
@@ -231,6 +242,15 @@ export function Editor() {
           </ul>
         </div> */}
       </div>
+
+      <h2
+        className="absolute -top-4 -left-4 text-6xl tracking-tighter mix-blend-overlay"
+        style={{
+          writingMode: 'sideways-rl',
+        }}
+      >
+        assorted works
+      </h2>
 
       {PositionedContent.map((content) => (
         <InteractiveCard

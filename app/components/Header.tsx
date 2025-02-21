@@ -23,11 +23,12 @@ export default function Header({
         >
           <Video
             src={AmanitaVideo}
-            wrapperClassName={cn(
+            aspectRatio={1}
+            loop
+            className={cn(
               'max-w-[300px] md:max-w-[425px] rounded-[158px] overflow-hidden',
               borderHighlightClasses({ group: true })
             )}
-            className="w-auto h-auto object-cover aspect-square"
             eager
           />
           <button
