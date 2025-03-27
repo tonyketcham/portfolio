@@ -26,7 +26,7 @@ export default function Header({
             aspectRatio={1}
             loop
             className={cn(
-              'max-w-[300px] md:max-w-[425px] rounded-[158px] overflow-hidden',
+              'max-w-[256px] md:max-w-[425px] rounded-[96px] md:rounded-[158px] overflow-hidden',
               borderHighlightClasses({ group: true })
             )}
             eager
@@ -39,7 +39,7 @@ export default function Header({
           />
         </TransformBounds>
       </div>
-      <TonyLogo className="inline-block w-[85%] text-white" />
+      <TonyLogo className="relative inline-block w-[85%] text-white" />
     </header>
   );
 }

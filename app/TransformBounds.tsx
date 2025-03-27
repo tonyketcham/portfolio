@@ -1,5 +1,6 @@
 'use client';
 
+import { useAreFilterDefinitionsSupported } from '@/app/filters/SupportedFilterDefinitionsProvider';
 import { cn } from '@/app/utils/css';
 import { AnimatePresence } from 'motion/react';
 import { motion } from 'motion/react';
@@ -11,6 +12,7 @@ import {
   type ReactNode,
   forwardRef,
   type ComponentProps,
+  useCallback,
 } from 'react';
 import { useMergeRefs } from 'rooks';
 
@@ -64,26 +66,41 @@ export const TransformBounds = forwardRef<
     const [bounds, setBounds] = useState({ width: 0, height: 0 });
     const [parentBounds, setParentBounds] = useState({ width: 0, height: 0 });
 
-    useEffect(() => {
-      const updateBoundsForElement = (
+    const updateBoundsForElement = useCallback(
+      (
         element: HTMLElement | null,
         onResize: (width: number, height: number) => void
       ) => {
         if (!element) return;
-        // Get element bounds
         const { width, height } = element.getBoundingClientRect();
         onResize(width, height);
-      };
+      },
+      []
+    );
 
-      const updateBounds = () => {
-        updateBoundsForElement(containerRef.current, (width, height) => {
-          setBounds({ width, height });
+    const updateBounds = useCallback(() => {
+      updateBoundsForElement(containerRef.current, (width, height) => {
+        setBounds((prevBounds) => {
+          if (prevBounds.width !== width || prevBounds.height !== height) {
+            return { width, height };
+          }
+          return prevBounds;
         });
-        updateBoundsForElement(document.body, (width, height) => {
-          setParentBounds({ width, height });
+      });
+      updateBoundsForElement(document.body, (width, height) => {
+        setParentBounds((prevParentBounds) => {
+          if (
+            prevParentBounds.width !== width ||
+            prevParentBounds.height !== height
+          ) {
+            return { width, height };
+          }
+          return prevParentBounds;
         });
-      };
+      });
+    }, [updateBoundsForElement]);
 
+    useEffect(() => {
       updateBounds();
 
       const observeElement = (element: HTMLElement | null) => {
@@ -91,9 +108,25 @@ export const TransformBounds = forwardRef<
         const resizeObserver = new ResizeObserver(() =>
           updateBoundsForElement(element, (width, height) => {
             if (element === containerRef.current) {
-              setBounds({ width, height });
+              setBounds((prevBounds) => {
+                if (
+                  prevBounds.width !== width ||
+                  prevBounds.height !== height
+                ) {
+                  return { width, height };
+                }
+                return prevBounds;
+              });
             } else if (element === document.body) {
-              setParentBounds({ width, height });
+              setParentBounds((prevParentBounds) => {
+                if (
+                  prevParentBounds.width !== width ||
+                  prevParentBounds.height !== height
+                ) {
+                  return { width, height };
+                }
+                return prevParentBounds;
+              });
             }
           })
         );
@@ -108,9 +141,10 @@ export const TransformBounds = forwardRef<
         containerObserver?.disconnect();
         bodyObserver?.disconnect();
       };
-    }, [containerRef]);
+    }, [updateBoundsForElement, updateBounds]);
 
     const mergedRef = useMergeRefs(containerRef, ref);
+    const areFiltersSupported = useAreFilterDefinitionsSupported();
 
     return (
       <>
@@ -198,7 +232,7 @@ export const TransformBounds = forwardRef<
             style={{
               width: bounds.width,
               height: bounds.height,
-              filter: `url(#aura)`,
+              filter: areFiltersSupported ? 'url(#aura)' : 'none',
             }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

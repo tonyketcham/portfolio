@@ -132,6 +132,7 @@ const Content: ContentItem[] = [
             src={p5SvelteVideo}
             aspectRatio={1454 / 1054}
             className="w-full max-w-xs"
+            eager={false}
           />
         ),
       },
@@ -225,7 +226,7 @@ export function Editor() {
   useHotkeys('alt+shift+d', dumpCurrentPosition);
 
   return (
-    <section ref={ref} className="flex relative min-h-[720px] h-svh bg-dot">
+    <section ref={ref} className="flex relative min-h-[720px] h-dvh bg-dot">
       {/* Click to de-select */}
       <div className="absolute inset-0" onClick={() => setSelected(null)} />
       {/* Layers panel */}
@@ -254,7 +255,7 @@ export function Editor() {
 
       {PositionedContent.map((content) => (
         <InteractiveCard
-          key={content.title}
+          key={content.id}
           id={content.id}
           initialPosition={{ left: content.left, top: content.top }}
           selected={selected}
