@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type PropsWithChildren } from 'react';
+import { useEffect, useState, type JSX, type PropsWithChildren } from 'react';
 import ReactDOM from 'react-dom';
 
 export enum PortalId {
@@ -10,7 +10,7 @@ export enum PortalId {
 export function InPortal({
   id = PortalId.Topout,
   children,
-}: PropsWithChildren<{ id?: string }>) {
+}: PropsWithChildren<{ id?: string }>): JSX.Element | null {
   const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
