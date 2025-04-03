@@ -1,4 +1,4 @@
-import { AuraFilter } from '@/app/filters/AuraFilter';
+// import { AuraFilter } from '@/app/filters/AuraFilter';
 import { ChromaticAberrationFilter } from '@/app/filters/DistortionAnimationFilter';
 
 /**
@@ -8,7 +8,7 @@ export function FilterDefinitions() {
   return (
     <svg width="0" height="0" aria-hidden="true">
       <ChromaticAberrationFilter />
-      <AuraFilter />
+      {/* <AuraFilter /> */}
     </svg>
   );
 }

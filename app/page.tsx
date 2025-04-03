@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Overview from './components/Overview';
 import { Editor } from '@/app/editor/Editor';
 import { PortalReceiver } from '@/app/utils/InPortal';
+import { Footer } from '@/app/components/Footer';
 
 export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -26,7 +27,7 @@ export default function Home() {
         filter: pageFilter,
       }}
     >
-      <div className="mx-auto max-w-(--breakpoint-2xl) px-6 pt-20 lg:pt-14 space-y-24 lg:space-y-0">
+      <div className="mx-auto max-w-(--breakpoint-2xl) px-6 pt-20 lg:pt-14 space-y-24 lg:space-y-0 bg-zinc-950 border-b border-zinc-200 outline outline-zinc-800/20 shadow-2xl shadow-zinc-950/40 rounded-b-2xl mb-80">
         <Header handleMushroomClick={handleMushroomClick} />
         <Overview />
         <main>
@@ -77,6 +78,7 @@ export default function Home() {
         </footer> */}
         <PortalReceiver />
       </div>
+      <Footer className="fixed bottom-0 -z-10" />
     </div>
   );
 }

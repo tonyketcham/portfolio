@@ -1,5 +1,6 @@
 import { TonyLogo } from '@/app/TonyLogo';
 import { TransformBounds } from '@/app/TransformBounds';
+import { Navigation } from '@/app/components/Navigation';
 import { Video } from '@/app/media/Video';
 import { borderHighlightClasses } from '@/app/utils/borderHighlight';
 import { cn } from '@/app/utils/css';
@@ -40,6 +41,7 @@ export default function Header({
         </TransformBounds>
       </div>
       <TonyLogo className="relative inline-block w-[85%] text-white" />
+      <Navigation />
     </header>
   );
 }
