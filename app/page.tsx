@@ -6,6 +6,7 @@ import Overview from './components/Overview';
 import { Editor } from '@/app/editor/Editor';
 import { PortalReceiver } from '@/app/utils/InPortal';
 import { Footer } from '@/app/components/Footer';
+import WhiteNoise from '@/public/white_noise_w_transparency.webp';
 
 export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null);
@@ -33,6 +34,13 @@ export default function Home() {
         <main>
           <Editor />
         </main>
+        <div
+          style={{
+            backgroundImage: `url(${WhiteNoise.src})`,
+            backgroundSize: '800px 800px',
+          }}
+          className="absolute inset-0 w-full bg-repeat object-scale-down pointer-events-none opacity-5"
+        />
         {/* <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
           <p>Hi</p>
         </main>
