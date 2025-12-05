@@ -10,9 +10,11 @@ import {
   useState,
   type PropsWithChildren,
   type ReactNode,
+  type Dispatch,
   forwardRef,
   type ComponentProps,
   useCallback,
+  type SetStateAction,
 } from 'react';
 import { useMergeRefs } from 'rooks';
 
@@ -66,82 +68,56 @@ export const TransformBounds = forwardRef<
     const [bounds, setBounds] = useState({ width: 0, height: 0 });
     const [parentBounds, setParentBounds] = useState({ width: 0, height: 0 });
 
-    const updateBoundsForElement = useCallback(
+    const measureElement = useCallback(
       (
         element: HTMLElement | null,
-        onResize: (width: number, height: number) => void
+        update: Dispatch<SetStateAction<{ width: number; height: number }>>
       ) => {
         if (!element) return;
         const { width, height } = element.getBoundingClientRect();
-        onResize(width, height);
+        update((prev) =>
+          prev.width !== width || prev.height !== height
+            ? { width, height }
+            : prev
+        );
       },
       []
     );
 
-    const updateBounds = useCallback(() => {
-      updateBoundsForElement(containerRef.current, (width, height) => {
-        setBounds((prevBounds) => {
-          if (prevBounds.width !== width || prevBounds.height !== height) {
-            return { width, height };
-          }
-          return prevBounds;
-        });
-      });
-      updateBoundsForElement(document.body, (width, height) => {
-        setParentBounds((prevParentBounds) => {
-          if (
-            prevParentBounds.width !== width ||
-            prevParentBounds.height !== height
-          ) {
-            return { width, height };
-          }
-          return prevParentBounds;
-        });
-      });
-    }, [updateBoundsForElement]);
-
     useEffect(() => {
-      updateBounds();
+      const element = containerRef.current;
+      measureElement(element, setBounds);
 
-      const observeElement = (element: HTMLElement | null) => {
-        if (!element) return;
-        const resizeObserver = new ResizeObserver(() =>
-          updateBoundsForElement(element, (width, height) => {
-            if (element === containerRef.current) {
-              setBounds((prevBounds) => {
-                if (
-                  prevBounds.width !== width ||
-                  prevBounds.height !== height
-                ) {
-                  return { width, height };
-                }
-                return prevBounds;
-              });
-            } else if (element === document.body) {
-              setParentBounds((prevParentBounds) => {
-                if (
-                  prevParentBounds.width !== width ||
-                  prevParentBounds.height !== height
-                ) {
-                  return { width, height };
-                }
-                return prevParentBounds;
-              });
-            }
-          })
-        );
-        resizeObserver.observe(element);
-        return resizeObserver;
-      };
+      if (!element) return;
 
-      const containerObserver = observeElement(containerRef.current);
-      const bodyObserver = observeElement(document.body);
+      const resizeObserver = new ResizeObserver(() =>
+        measureElement(element, setBounds)
+      );
+      resizeObserver.observe(element);
 
       return () => {
-        containerObserver?.disconnect();
-        bodyObserver?.disconnect();
+        resizeObserver.disconnect();
       };
-    }, [updateBoundsForElement, updateBounds]);
+    }, [measureElement]);
+
+    useEffect(() => {
+      const parentElement = dragContainer?.current;
+
+      if (parentElement) {
+        measureElement(parentElement, setParentBounds);
+        const resizeObserver = new ResizeObserver(() =>
+          measureElement(parentElement, setParentBounds)
+        );
+        resizeObserver.observe(parentElement);
+
+        return () => {
+          resizeObserver.disconnect();
+        };
+      }
+
+      // Fall back to a single measurement of the body to avoid reflows during drag
+      measureElement(document.body, setParentBounds);
+    }, [dragContainer, measureElement]);
 
     const mergedRef = useMergeRefs(containerRef, ref);
     const areFiltersSupported = useAreFilterDefinitionsSupported();
