@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * Toe Knee: a mouse cursor that grew legs. Knees and toes included.
- * Click-to-move on the tile grid at old-school tick speed, with procedural
- * two-bone legs, squash & stretch, cut/paste teleports and an idle sit.
+ * Toe Knee, the player: a cursor in a hoodie (see ../avatar/rig). This
+ * component moves it on the tile grid at old-school tick speed, plays poses
+ * when it uses furniture (sitting on chairs, hammering, praying…), handles
+ * cut/paste teleports and the intro drop, and keeps a kinematic body so it
+ * can shove physics props around.
  */
 import { useFrame } from '@react-three/fiber';
 import { CapsuleCollider, RigidBody, type RapierRigidBody } from '@react-three/rapier';
@@ -11,68 +13,17 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { works } from '@/content/works';
 import { zones } from '@/content/zones';
+import { hammerStrike, type PoseKind } from '../avatar/poses';
+import { Avatar } from '../avatar/rig';
 import { tweaks } from '../debug/tweaks';
-import { clamp, damp, dampAngle } from '../lib/random';
+import { damp, dampAngle } from '../lib/random';
 import { emit, sfx } from '../state/events';
 import { houseUniforms } from '../house/materials';
-import { place, registerInteractable, runtime, sayOverhead } from '../state/runtime';
+import { clearPose, place, playPose, registerInteractable, runtime, sayOverhead } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
 import { findPath, type TilePos } from '../world/pathfinding';
 import { revealScale } from './globals';
 import { TileChannel, setShadow } from './Terrain';
-
-// Classic pointer silhouette (x right, y down), 11.5 × 19 units.
-const ARROW: [number, number][] = [
-  [0, 0],
-  [0, 16],
-  [4, 12.5],
-  [7, 19],
-  [9.6, 18],
-  [6.6, 11.6],
-  [11.5, 11.5],
-];
-const K = 0.05;
-const CX = 5.4;
-const toLocal = (x: number, y: number) => new THREE.Vector2((x - CX) * K, (19 - y) * K);
-
-function useCursorGeometry() {
-  return useMemo(() => {
-    const shape = new THREE.Shape(ARROW.map(([x, y]) => toLocal(x, y)));
-    const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.14,
-      bevelEnabled: true,
-      bevelThickness: 0.02,
-      bevelSize: 0.018,
-      bevelSegments: 1,
-    });
-    geo.translate(0, 0, -0.07);
-    geo.computeVertexNormals();
-    return geo;
-  }, []);
-}
-
-const UP = new THREE.Vector3(0, 1, 0);
-const tmpDir = new THREE.Vector3();
-const tmpLocal = new THREE.Vector3();
-const tmpHip = new THREE.Vector3();
-const tmpFoot = new THREE.Vector3();
-const tmpKnee = new THREE.Vector3();
-const tmpSitFoot = new THREE.Vector3();
-function placeBone(mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3) {
-  tmpDir.subVectors(b, a);
-  const len = tmpDir.length();
-  mesh.position.copy(a).addScaledVector(tmpDir, 0.5);
-  mesh.quaternion.setFromUnitVectors(UP, tmpDir.normalize());
-  mesh.scale.set(1, len, 1);
-}
-
-interface Leg {
-  side: number;
-  thigh: THREE.Mesh;
-  shin: THREE.Mesh;
-  knee: THREE.Mesh;
-  foot: THREE.Group;
-}
 
 const easeOutBounce = (x: number) => {
   const n1 = 7.5625;
@@ -89,16 +40,28 @@ function groundReady(x: number, z: number) {
   return houseUniforms.built.value >= 0.98 ? 1 : 0;
 }
 
+const tmpLook = new THREE.Vector3();
+const tmpHand = new THREE.Vector3();
+
+/** Emotes on the player's own right-click menu. */
+const EMOTES: { verb: string; pose?: PoseKind; say?: string }[] = [
+  { verb: 'Wave', pose: 'wave', say: 'o/' },
+  { verb: 'Dance', pose: 'dance' },
+  { verb: 'Cheer', pose: 'cheer', say: 'Ship it!' },
+  { verb: 'Think', pose: 'think', say: 'Hmm…' },
+  { verb: 'Clap', pose: 'clap' },
+  { verb: 'Shrug', pose: 'shrug', say: '¯\\_(ツ)_/¯' },
+  { verb: 'Bow', pose: 'bow' },
+  { verb: 'Yawn', pose: 'yawn' },
+  { verb: 'Spin' },
+  { verb: 'Hop' },
+];
+
 export function Player() {
   const root = useRef<THREE.Group>(null);
-  const bodyGroup = useRef<THREE.Group>(null);
-  const bodyMat = useRef<THREE.MeshLambertMaterial>(null);
-  const outlineMat = useRef<THREE.MeshBasicMaterial>(null);
-  const pupils = useRef<THREE.Group[]>([]);
-  const lids = useRef<THREE.Mesh[]>([]);
-  const legsRef = useRef<Leg[]>([]);
   const body = useRef<RapierRigidBody>(null);
-  const cursorGeo = useCursorGeometry();
+  const avatar = useMemo(() => new Avatar(), []);
+  useEffect(() => () => avatar.dispose(), [avatar]);
 
   const sim = useRef({
     path: [] as TilePos[],
@@ -116,11 +79,16 @@ export function Player() {
     seenZones: new Set<string>(),
     teleport: null as null | { t: number; to: TilePos; onArrive?: () => void; moved: boolean },
     dropT: 0,
-    sit: 0,
     blink: 0,
     nextBlink: 2,
-    emote: null as null | { name: 'spin' | 'wave' | 'hop'; t: number },
+    emote: null as null | { name: 'spin' | 'hop'; t: number },
     ringCooldown: 0,
+    /** Where the body is drawn when it settles off-tile (a chair), and how far it has settled. */
+    seat: new THREE.Vector3(),
+    seatYaw: 0,
+    seatK: 0,
+    lastStrike: 0,
+    look: '',
   });
 
   // spawn
@@ -131,6 +99,7 @@ export function Player() {
     runtime.player.pos.set(sx, P.heightAt(sx, sz), sz);
     runtime.player.tile = spawn;
     runtime.player.yaw = Math.PI;
+    runtime.player.pose = null;
     sim.current.from.copy(runtime.player.pos);
     sim.current.to.copy(runtime.player.pos);
   }, []);
@@ -143,10 +112,12 @@ export function Player() {
       sim.current.destSeq = d.seq;
       const s = sim.current;
       const P = place();
+      clearPose();
       if (d.instant) {
         // portal arrival: just be there
         s.path = [];
         s.teleport = null;
+        s.seatK = 0;
         const [x, z] = P.tileCenter(d.tile[0], d.tile[1]);
         runtime.player.pos.set(x, P.heightAt(x, z), z);
         runtime.player.tile = [...d.tile] as TilePos;
@@ -195,30 +166,35 @@ export function Player() {
     return unsub;
   }, []);
 
-  // self as an interactable
+  // levelling up is worth a cheer (unless you're mid-walk)
   useEffect(
     () =>
-      registerInteractable({
-        id: 'player',
-        name: 'Toe Knee',
-        tone: 'player',
-        object: () => bodyGroup.current,
-        examine: "That's you. A cursor that grew legs. Knees and toes included.",
-        actions: [
-          {
-            verb: 'Wave',
-            run: () => {
-              sim.current.emote = { name: 'wave', t: 0 };
-              sayOverhead('o/', 2);
-            },
-          },
-          { verb: 'Spin', run: () => (sim.current.emote = { name: 'spin', t: 0 }) },
-          { verb: 'Hop', run: () => (sim.current.emote = { name: 'hop', t: 0 }) },
-        ],
-        dimensions: () => '24 × 24 cursor',
+      useGame.subscribe((s, prev) => {
+        if (s.levelUp && s.levelUp.seq !== prev.levelUp?.seq && !runtime.player.moving && !runtime.player.pose?.seat) playPose('cheer');
       }),
     []
   );
+
+  // self as an interactable, with emotes (hits on any limb resolve to 'player')
+  useEffect(() => {
+    avatar.group.userData.interactable = 'player';
+    return registerInteractable({
+      id: 'player',
+      name: 'Toe Knee',
+      tone: 'player',
+      object: () => avatar.group,
+      examine: "That's you. A cursor in a hoodie. Knees and toes included.",
+      actions: EMOTES.map((e) => ({
+        verb: e.verb,
+        run: () => {
+          if (e.pose) playPose(e.pose);
+          else sim.current.emote = { name: e.verb === 'Spin' ? 'spin' : 'hop', t: 0 };
+          if (e.say) sayOverhead(e.say, 2);
+        },
+      })),
+      dimensions: () => '24 × 24 cursor',
+    });
+  }, [avatar]);
 
   const finishStep = (s: typeof sim.current) => {
     const P = place();
@@ -278,6 +254,7 @@ export function Player() {
           s.from.copy(P.pos);
           s.to.copy(P.pos);
           s.stepT = 1;
+          s.seatK = 0;
           P.tile = [...s.teleport.to] as TilePos;
           s.lastZone = null;
           sfx('paste');
@@ -305,12 +282,16 @@ export function Player() {
       s.stepT = 0;
     }
     let moving = false;
+    let moved = 0;
     if (s.stepT < 1) {
       moving = true;
       s.stepT = Math.min(1, s.stepT + dt / s.stepDur);
       const k = t.Player.snapToTicks ? Math.round(s.stepT * 2) / 2 : s.stepT;
+      const px = P.pos.x;
+      const pz = P.pos.z;
       P.pos.lerpVectors(s.from, s.to, k);
       P.pos.y = place().heightAt(P.pos.x, P.pos.z);
+      moved = Math.hypot(P.pos.x - px, P.pos.z - pz);
       const dx = s.to.x - s.from.x;
       const dz = s.to.z - s.from.z;
       if (Math.abs(dx) + Math.abs(dz) > 1e-4) P.yaw = dampAngle(P.yaw, Math.atan2(dx, dz), 14, dt);
@@ -328,15 +309,46 @@ export function Player() {
     P.moving = moving;
     if (!g.running) g.caffeine < 100 && Math.random() < dt * 2 && g.setCaffeine(g.caffeine + 0.5);
 
-    // ── idle: look at the pointer, blink, eventually sit ────────────────────
-    P.idle = moving ? 0 : P.idle + dt;
-    s.sit = damp(s.sit, P.idle > 40 ? 1 : 0, 3, dt);
-    if (P.idle > 40 && P.idle - dt <= 40) g.say(runtime.location === 'house' ? 'You sit down on the floor for a moment. Nice floor.' : 'You sit down on the canvas for a moment.');
-    if (!moving && runtime.lookActive > 0 && !s.emote) {
-      const lx = runtime.lookTarget.x - P.pos.x;
-      const lz = runtime.lookTarget.z - P.pos.z;
-      if (lx * lx + lz * lz > 0.3) P.yaw = dampAngle(P.yaw, Math.atan2(lx, lz), 3, dt);
+    // ── poses: what the body is doing ───────────────────────────────────────
+    if (moving && P.pose) clearPose();
+    P.idle = moving || P.pose ? 0 : P.idle + dt;
+    let kind: PoseKind = 'stand';
+    let poseT = 0;
+    const pose = P.pose;
+    if (pose) {
+      pose.t += dt;
+      if (pose.t >= pose.dur) clearPose();
+      else {
+        kind = pose.kind;
+        poseT = pose.t;
+        if (pose.face) P.yaw = dampAngle(P.yaw, Math.atan2(pose.face.x - P.pos.x, pose.face.z - P.pos.z), 10, dt);
+        if (pose.seat) {
+          s.seat.set(pose.seat.x, P.pos.y, pose.seat.z);
+          s.seatYaw = pose.seat.yaw;
+        }
+      }
+    } else if (P.idle > 40) {
+      kind = 'sit-floor';
+      poseT = P.idle - 40;
+      if (P.idle - dt <= 40) g.say(runtime.location === 'house' ? 'You sit down on the floor for a moment. Nice floor.' : 'You sit down on the canvas for a moment.');
     }
+    const seated = !!P.pose?.seat;
+    s.seatK = damp(s.seatK, seated ? 1 : 0, seated ? 7 : 12, dt);
+    if (seated) P.yaw = dampAngle(P.yaw, s.seatYaw, 9, dt);
+
+    // the hammer lands: tap, and a little sawdust
+    if (kind === 'build') {
+      const k = hammerStrike(poseT);
+      if (s.lastStrike > 0.25 && k < 0.1) {
+        sfx('hammer', 0.9 + Math.random() * 0.25);
+        avatar.rightHand(tmpHand);
+        emit({ type: 'burst', kind: 'sawdust', x: tmpHand.x, y: tmpHand.y, z: tmpHand.z, count: 4 });
+      }
+      s.lastStrike = k;
+    } else s.lastStrike = 0;
+
+    // look at the pointer when idle
+    const lookTarget = runtime.lookActive > 0 && !moving && kind === 'stand' ? tmpLook : null;
 
     // ── intro drop ─────────────────────────────────────────────────────────
     const reveal = groundReady(P.pos.x, P.pos.z);
@@ -353,44 +365,36 @@ export function Player() {
     }
     const dropY = (1 - easeOutBounce(s.dropT)) * 7;
 
-    // ── animation ─────────────────────────────────────────────────────────
+    // ── movement feel ───────────────────────────────────────────────────────
     const speedTarget = moving ? (g.running ? 2 : 1) : 0;
     s.speed = damp(s.speed, speedTarget, 10, dt);
-    s.phase += dt * (5.2 + s.speed * 3.2) * (s.speed > 0.05 ? 1 : 0);
+    // advance the gait by distance so feet don't skate
+    const stepLen = 0.3 + Math.max(0, s.speed - 1) * 0.14;
+    s.phase += (moved / stepLen) * Math.PI;
     s.squash = damp(s.squash, 0, 7, dt);
     const scale = t.Player.scale * teleScale * (reveal > 0 ? 1 : 0);
-    const legsK = t.Player.legs;
 
     let emoteYaw = 0;
-    let emoteTilt = 0;
     let emoteHop = 0;
     if (s.emote) {
       s.emote.t += dt;
       const e = s.emote;
       if (e.name === 'spin') emoteYaw = Math.min(1, e.t / 0.8) * Math.PI * 4;
-      if (e.name === 'wave') emoteTilt = Math.sin(e.t * 14) * 0.25 * (1 - Math.min(1, e.t / 1.2));
       if (e.name === 'hop') emoteHop = Math.max(0, Math.sin(Math.min(1, e.t / 0.5) * Math.PI)) * 0.6;
-      if (e.t > (e.name === 'spin' ? 0.8 : e.name === 'wave' ? 1.2 : 0.5)) s.emote = null;
+      if (e.t > (e.name === 'spin' ? 0.8 : 0.5)) s.emote = null;
     }
 
     if (root.current) {
-      root.current.position.set(P.pos.x, P.pos.y + dropY + emoteHop, P.pos.z);
+      const x = P.pos.x + (s.seat.x - P.pos.x) * s.seatK;
+      const z = P.pos.z + (s.seat.z - P.pos.z) * s.seatK;
+      root.current.position.set(x, P.pos.y + dropY + emoteHop, z);
       root.current.rotation.y = P.yaw + emoteYaw;
       root.current.scale.setScalar(scale);
+      if (lookTarget) {
+        lookTarget.copy(runtime.lookTarget).sub(root.current.position).applyAxisAngle(THREE.Object3D.DEFAULT_UP, -root.current.rotation.y);
+        lookTarget.divideScalar(Math.max(0.01, scale));
+      }
     }
-
-    const bob = Math.abs(Math.sin(s.phase)) * 0.045 * s.speed * t.Player.bounce;
-    const hipY = 0.4 * legsK;
-    const sitDrop = s.sit * hipY * 0.6;
-    if (bodyGroup.current) {
-      const breathe = Math.sin(state.clock.elapsedTime * 2.2) * 0.012 * (1 - s.speed);
-      bodyGroup.current.position.y = hipY + bob - sitDrop;
-      bodyGroup.current.rotation.x = s.speed * (g.running ? 0.22 : 0.1);
-      bodyGroup.current.rotation.z = emoteTilt + Math.sin(s.phase) * 0.05 * s.speed;
-      bodyGroup.current.scale.set(1 + s.squash * 0.35 - breathe, 1 - s.squash * 0.45 + breathe, 1 + s.squash * 0.35);
-    }
-    if (bodyMat.current) bodyMat.current.color.set(t.Player.body);
-    if (outlineMat.current) outlineMat.current.color.set(t.Player.outline);
 
     // blink
     s.nextBlink -= dt;
@@ -399,141 +403,39 @@ export function Player() {
       s.nextBlink = 2 + Math.random() * 4;
     }
     s.blink = Math.max(0, s.blink - dt * 8);
-    for (const lid of lids.current) lid.scale.y = 0.05 + s.blink * 1.2;
 
-    // pupils look toward the look target (or forward)
-    const local = tmpLocal;
-    if (runtime.lookActive > 0 && root.current) {
-      local.copy(runtime.lookTarget).sub(root.current.position);
-      local.applyAxisAngle(UP, -root.current.rotation.y);
-    } else local.set(0, 0, 1);
-    const px = clamp(local.x * 0.06, -0.012, 0.012);
-    const py = clamp((local.y - 0.6) * 0.03, -0.01, 0.01);
-    for (const p of pupils.current) p.position.set(px, py, 0);
-
-    // legs: two-bone IK in each leg's sagittal plane
-    const L1 = 0.2 * legsK;
-    const L2 = 0.21 * legsK;
-    const stride = 0.17 * Math.min(1.6, s.speed);
-    const hip = tmpHip;
-    const foot = tmpFoot;
-    const knee = tmpKnee;
-    for (const leg of legsRef.current) {
-      const ph = s.phase + (leg.side > 0 ? Math.PI : 0);
-      hip.set(leg.side * 0.085, hipY + bob - sitDrop, 0);
-      const swing = Math.cos(ph);
-      foot.set(leg.side * 0.1, Math.max(0, swing) * 0.1 * Math.min(1, s.speed), Math.sin(ph) * stride);
-      if (s.sit > 0.01) foot.lerp(tmpSitFoot.set(leg.side * 0.12, 0, 0.24), s.sit);
-      const dy = foot.y - hip.y;
-      const dz = foot.z - hip.z;
-      const d = Math.min(L1 + L2 - 0.001, Math.hypot(dy, dz));
-      const alpha = Math.atan2(dz, -dy);
-      const cosK = (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d);
-      const theta = Math.acos(clamp(cosK, -1, 1));
-      const a = alpha + theta;
-      knee.set(hip.x + (foot.x - hip.x) * 0.5, hip.y - Math.cos(a) * L1, hip.z + Math.sin(a) * L1);
-      placeBone(leg.thigh, hip, knee);
-      placeBone(leg.shin, knee, foot);
-      leg.knee.position.copy(knee);
-      leg.foot.position.copy(foot);
+    // colours from the Player panel
+    const look = `${t.Player.body}|${t.Player.outline}|${t.Player.hoodie}|${t.Player.pants}`;
+    if (look !== s.look) {
+      s.look = look;
+      avatar.setLook({ head: t.Player.body, outline: t.Player.outline, hoodie: t.Player.hoodie, pants: t.Player.pants });
     }
 
+    avatar.update({
+      dt,
+      time: state.clock.elapsedTime,
+      kind,
+      t: poseT,
+      speed: s.speed,
+      phase: s.phase,
+      bounce: t.Player.bounce,
+      blink: s.blink,
+      look: lookTarget,
+      squash: s.squash,
+    });
+
     // physics proxy so we can shove things around
-    body.current?.setNextKinematicTranslation({ x: P.pos.x, y: P.pos.y + 0.55 + dropY, z: P.pos.z });
+    body.current?.setNextKinematicTranslation({ x: P.pos.x, y: P.pos.y + 0.6 + dropY, z: P.pos.z });
     setShadow('player', P.pos.x, P.pos.z, 0.5 * scale, 0.42 * Math.min(1, scale) * (1 - Math.min(1, dropY / 6)));
   });
-
-  const legMat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#18181b' }), []);
-  const kneeMat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#3b82f6' }), []);
-  const toeMat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#fafafa' }), []);
-  const boneGeo = useMemo(() => new THREE.CylinderGeometry(0.026, 0.022, 1, 6), []);
-  const kneeGeo = useMemo(() => new THREE.SphereGeometry(0.042, 8, 6), []);
-  const toeGeo = useMemo(() => new THREE.SphereGeometry(0.026, 6, 5), []);
-
-  const eye = (x: number, y: number, k: number) => {
-    const p = toLocal(x, y);
-    return (
-      <group position={[p.x, p.y, 0.1]} key={k}>
-        <mesh>
-          <circleGeometry args={[0.05, 12]} />
-          <meshBasicMaterial color="#fafafa" />
-        </mesh>
-        <group ref={(g: THREE.Group | null) => void (g && (pupils.current[k] = g))}>
-          <mesh position-z={0.004}>
-            <circleGeometry args={[0.026, 10]} />
-            <meshBasicMaterial color="#09090b" />
-          </mesh>
-        </group>
-        <mesh position={[0, 0.03, 0.008]} ref={(m: THREE.Mesh | null) => void (m && (lids.current[k] = m))} scale={[1, 0.05, 1]}>
-          <planeGeometry args={[0.11, 0.06]} />
-          <meshBasicMaterial color="#09090b" />
-        </mesh>
-      </group>
-    );
-  };
 
   return (
     <>
       <group ref={root} name="player">
-        <group ref={bodyGroup}>
-          <mesh geometry={cursorGeo} castShadow>
-            <meshLambertMaterial ref={bodyMat} color="#09090b" flatShading />
-          </mesh>
-          <mesh geometry={cursorGeo} scale={[1.09, 1.07, 1.35]} position={[-0.012, -0.03, 0]}>
-            <meshBasicMaterial ref={outlineMat} color="#fafafa" side={THREE.BackSide} />
-          </mesh>
-          {eye(2.6, 8.6, 0)}
-          {eye(5.4, 9.6, 1)}
-        </group>
-        {[-1, 1].map((side) => (
-          <group key={side}>
-            <mesh
-              geometry={boneGeo}
-              material={legMat}
-              ref={(m: THREE.Mesh | null) => {
-                if (!m) return;
-                const leg = legsRef.current.find((l) => l.side === side) ?? ({ side } as Leg);
-                leg.thigh = m;
-                if (!legsRef.current.includes(leg)) legsRef.current.push(leg);
-              }}
-            />
-            <mesh
-              geometry={boneGeo}
-              material={legMat}
-              ref={(m: THREE.Mesh | null) => {
-                if (!m) return;
-                const leg = legsRef.current.find((l) => l.side === side);
-                if (leg) leg.shin = m;
-              }}
-            />
-            <mesh
-              geometry={kneeGeo}
-              material={kneeMat}
-              ref={(m: THREE.Mesh | null) => {
-                if (!m) return;
-                const leg = legsRef.current.find((l) => l.side === side);
-                if (leg) leg.knee = m;
-              }}
-            />
-            <group
-              ref={(g: THREE.Group | null) => {
-                if (!g) return;
-                const leg = legsRef.current.find((l) => l.side === side);
-                if (leg) leg.foot = g;
-              }}
-            >
-              <mesh position={[0, 0.02, 0.03]} scale={[0.07, 0.04, 0.1]} material={legMat}>
-                <boxGeometry />
-              </mesh>
-              {[-0.025, 0, 0.025].map((tx) => (
-                <mesh key={tx} geometry={toeGeo} material={toeMat} position={[tx, 0.02, 0.085]} />
-              ))}
-            </group>
-          </group>
-        ))}
+        <primitive object={avatar.group} />
       </group>
       <RigidBody ref={body} type="kinematicPosition" colliders={false} position={[0, -10, 0]}>
-        <CapsuleCollider args={[0.25, 0.3]} />
+        <CapsuleCollider args={[0.3, 0.3]} />
       </RigidBody>
     </>
   );

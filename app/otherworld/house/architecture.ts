@@ -35,10 +35,11 @@ import {
 } from 'three/tsl';
 import { mulberry32 } from '../lib/random';
 import { globalUniforms } from '../scene/globals';
-import { bayer4, falloff, fbm, hash12, hex3, vnoise, type F, type V2, type V3 } from '../shaders/common';
+import { bayer4, falloff, fbm, hash12, hash22, hex3, vnoise, type F, type V2, type V3 } from '../shaders/common';
 import { tileOverlay } from '../shaders/terrain';
 import { HOUSE_STYLES, type HouseStyle } from './styles';
 import { houseUniforms } from './materials';
+import { gardenBedMask, gardenPathCentre, gardenPathMask, RING_HALF } from './gardenPlan';
 import { ROOM, WALL_H, WALL_T, type HouseLayout, type PlacedHotspot, type WallSide } from './layout';
 import type { FloorKind } from './types';
 
@@ -476,13 +477,37 @@ const floorColour = Fn(([kind, lp, wp]: [F, V2, V2]) => {
   const border = step(e, 0.7).mul(step(0.18, e));
   const pattern = step(0.5, fract(lp.x.add(lp.y).mul(1.5))).mul(0.06);
   const carpet = mix(vec3(0.14, 0.03, 0.06).add(pattern), vec3(0.55, 0.36, 0.08), border.mul(step(abs(fract(e.mul(4)).sub(0.5)), 0.3)));
-  // grass with a stone path along the doorway axes
-  const blades = vnoise(wp.mul(9)).mul(0.25).add(fbm(wp.mul(0.7)).mul(0.3));
-  const grass = vec3(0.09, 0.2, 0.04).mul(blades.add(0.75));
-  const onPath = step(abs(lp.x.sub(4)), 0.95).max(step(abs(lp.y.sub(4)), 0.95));
-  const stones = step(0.35, hash12(floor(wp.mul(2.2))));
-  const path = mix(grass, vec3(0.42, 0.4, 0.36).mul(hash12(floor(wp.mul(2.2))).mul(0.3).add(0.8)), stones);
-  const garden = mix(grass, path, onPath);
+  // garden courtyard: dark lawn soil (the blades are geometry), stepping
+  // stones in gravel along the paths, and flower-bed earth along the walls
+  const lawn = vec3(0.075, 0.16, 0.035).mul(fbm(wp.mul(1.3)).mul(0.45).add(0.72)).mul(vnoise(wp.mul(8)).mul(0.3).add(0.82));
+  const sg = lp.div(0.6);
+  const cell = floor(sg);
+  const jit = hash22(cell).sub(0.5);
+  const sid = hash12(cell.add(17));
+  const sq = abs(fract(sg).sub(0.5).sub(jit.mul(0.16))).sub(float(0.3).add(sid.mul(0.07)).sub(0.12));
+  const stoneD = max(sq, vec2(0)).length().add(min(max(sq.x, sq.y), 0)).sub(0.12);
+  const keep = gardenPathMask(cell.add(0.5).mul(0.6)).mul(step(0.12, hash12(cell.add(3))));
+  const stoneCol = mix(hex3('#8f877d'), hex3('#d3cbbd'), sid).mul(vnoise(wp.mul(6)).mul(0.2).add(0.88));
+  const gravel = hex3('#6f6555').mul(vnoise(wp.mul(30)).mul(0.35).add(0.75));
+  const stone = step(stoneD, 0).mul(keep);
+  const path = mix(gravel, mix(stoneCol, stoneCol.mul(0.55), stoneD.smoothstep(-0.05, 0)), stone);
+  const soil = hex3('#3a2617').mul(vnoise(wp.mul(14)).mul(0.4).add(0.7));
+  const garden = mix(mix(lawn, path, gardenPathMask(lp)), soil, gardenBedMask(lp)).toVar();
+  // build mode: the path is a vector stroke, centre line and anchor points showing
+  const centre = gardenPathCentre(lp);
+  const box = (x: number, y: number) => {
+    const d = abs(lp.sub(vec2(x, y)));
+    return max(d.x, d.y);
+  };
+  const a = min(
+    min(min(box(4, 0.3), box(4, 7.7)), min(box(0.3, 4), box(7.7, 4))),
+    min(min(box(4, 4 - RING_HALF), box(4, 4 + RING_HALF)), min(box(4 - RING_HALF, 4), box(4 + RING_HALF, 4)))
+  );
+  const stroke = step(centre, 0.035).mul(gardenPathMask(lp));
+  const bm = houseUniforms.buildMode;
+  garden.assign(mix(garden, hex3('#3b82f6'), stroke.mul(bm)));
+  garden.assign(mix(garden, hex3('#3b82f6'), step(a, 0.13).mul(bm)));
+  garden.assign(mix(garden, vec3(0.98), step(a, 0.09).mul(bm)));
 
   col.assign(p0);
   col.assign(select(kind.greaterThan(0.5), p1, col));

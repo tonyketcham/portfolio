@@ -9,7 +9,7 @@ import type { TilePos } from '../world/pathfinding';
 import { PLACES, type PlaceId } from '../world/places';
 import { emit, sfx } from './events';
 import { ITEMS, TEAS, itemName, type ItemStack } from './items';
-import { runtime, sayOverhead } from './runtime';
+import { playPose, runtime, sayOverhead } from './runtime';
 import { SKILLS, XP_TABLE } from './skills';
 import { gameState } from './store';
 
@@ -163,6 +163,8 @@ export function pickUp(stack: ItemStack) {
   return ok;
 }
 
+const EMOTE_COMMANDS = ['wave', 'dance', 'cheer', 'think', 'clap', 'shrug', 'bow', 'yawn'] as const;
+
 /** `::command` handling from the chat box. Returns true if it was a command. */
 export function runChatCommand(raw: string): boolean {
   if (!raw.startsWith('::')) return false;
@@ -233,9 +235,16 @@ export function runChatCommand(raw: string): boolean {
       window.location.href = '/classic';
       break;
     case 'help':
-      s.say('Commands: ::home ::island ::build ::dial ::target <panel> ::tp <zone> ::tea ::shroom ::type <text> ::undo ::intro ::max ::reset ::classic', 'system');
+      s.say(
+        `Commands: ::home ::island ::build ::dial ::target <panel> ::tp <zone> ::tea ::shroom ::type <text> ::undo ::intro ::max ::reset ::classic. Emotes: ${EMOTE_COMMANDS.map((e) => '::' + e).join(' ')}`,
+        'system'
+      );
       break;
     default:
+      if (EMOTE_COMMANDS.includes(cmd?.toLowerCase() as (typeof EMOTE_COMMANDS)[number])) {
+        playPose(cmd.toLowerCase() as (typeof EMOTE_COMMANDS)[number]);
+        break;
+      }
       s.say(`Unknown command ::${cmd}. Try ::help`, 'system');
   }
   return true;

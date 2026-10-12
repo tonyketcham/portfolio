@@ -10,9 +10,9 @@ import * as THREE from 'three';
 import { useTweaks } from '../debug/tweaks';
 import { mulberry32 } from '../lib/random';
 import { emit, sfx } from '../state/events';
-import { registerInteractable, runtime } from '../state/runtime';
+import { place, registerInteractable, runtime } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
-import { getWorld, heightAt, worldToTile } from '../world/map';
+import { getWorld, heightAt } from '../world/map';
 import { globalUniforms } from './globals';
 import { Label } from './Label';
 
@@ -36,16 +36,28 @@ const HOMES: [number, number][] = [
   [-17, 3],
 ];
 
-function Butterfly({ index }: { index: number }) {
-  const id = `butterfly:${index}`;
+interface ButterflyProps {
+  index: number;
+  /** Interactable id prefix, so the island's and the garden's don't collide. */
+  prefix?: string;
+  home: [number, number];
+  /** How far from home it wanders. */
+  range?: [number, number];
+  ground: (x: number, z: number) => number;
+  visible: () => boolean;
+}
+
+const DEFAULT_RANGE: [number, number] = [1.5, 4];
+
+export function Butterfly({ index, prefix = 'butterfly', home, range = DEFAULT_RANGE, ground, visible }: ButterflyProps) {
+  const id = `${prefix}:${index}`;
   const group = useRef<THREE.Group>(null);
   const wings = useRef<THREE.Group[]>([]);
   const [caughtAt, setCaughtAt] = useState(0);
-  const world = getWorld();
   const rand = useMemo(() => mulberry32(index * 13 + 5), [index]);
   const params = useMemo(
-    () => ({ home: HOMES[index % HOMES.length], r: 1.5 + rand() * 2.5, speed: 0.25 + rand() * 0.35, phase: rand() * 10, h: 1 + rand() * 1.2 }),
-    [index, rand]
+    () => ({ home, r: range[0] + rand() * (range[1] - range[0]), speed: 0.25 + rand() * 0.35, phase: rand() * 10, h: 1 + rand() * 1.2 }),
+    [rand, home, range]
   );
 
   useEffect(() => {
@@ -64,7 +76,7 @@ function Butterfly({ index }: { index: number }) {
       layer: 'wildlife',
       object: () => group.current,
       examine: 'A bezier handle, loose in the wild. Beautifully smooth tangents.',
-      approach: () => (group.current ? worldToTile(group.current.position.x, group.current.position.z) : null),
+      approach: () => (group.current ? place().worldToTile(group.current.position.x, group.current.position.z) : null),
       actions: [
         {
           verb: 'Catch',
@@ -98,12 +110,12 @@ function Butterfly({ index }: { index: number }) {
     const t = state.clock.elapsedTime * params.speed + params.phase;
     const x = params.home[0] + Math.sin(t) * params.r + Math.sin(t * 2.3) * 0.4;
     const z = params.home[1] + Math.cos(t * 0.8) * params.r;
-    const y = heightAt(world, x, z) + params.h + Math.sin(t * 3.1) * 0.25;
+    const y = ground(x, z) + params.h + Math.sin(t * 3.1) * 0.25;
     const dx = x - g.position.x;
     const dz = z - g.position.z;
     g.position.set(x, y, z);
     g.rotation.y = Math.atan2(dx, dz);
-    g.visible = !caughtAt && globalUniforms.uReveal.value > 50;
+    g.visible = !caughtAt && visible();
     const flap = Math.sin(state.clock.elapsedTime * 16 + params.phase) * 0.9;
     wings.current.forEach((w, i) => {
       w.rotation.x = (i === 0 ? 1 : -1) * (0.4 + flap * 0.5);
@@ -123,6 +135,9 @@ function Butterfly({ index }: { index: number }) {
   );
 }
 
+const islandGround = (x: number, z: number) => heightAt(getWorld(), x, z);
+const islandVisible = () => globalUniforms.uReveal.value > 50;
+
 export function Butterflies() {
   const count = useTweaks((t) => t.Flora.butterflies);
   const stage = useGame((s) => s.stage);
@@ -130,7 +145,7 @@ export function Butterflies() {
   return (
     <>
       {Array.from({ length: count }, (_, i) => (
-        <Butterfly key={i} index={i} />
+        <Butterfly key={i} index={i} home={HOMES[i % HOMES.length]} ground={islandGround} visible={islandVisible} />
       ))}
     </>
   );

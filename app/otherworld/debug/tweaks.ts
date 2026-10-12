@@ -71,9 +71,10 @@ export const PANELS = {
     snapToTicks: false,
     scale: [1, 0.5, 2.5],
     bounce: [1, 0, 2.5],
-    legs: [1, 0.4, 2],
     body: '#09090b',
     outline: '#fafafa',
+    hoodie: '#3b82f6',
+    pants: '#27272a',
     caffeineDrain: [1, 0, 4],
   },
   Physics: {

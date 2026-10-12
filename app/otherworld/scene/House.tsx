@@ -8,7 +8,7 @@
  */
 import { useFrame, useThree } from '@react-three/fiber';
 import { CuboidCollider, RigidBody } from '@react-three/rapier';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import * as THREE from 'three/webgpu';
 import { useTweaks, tweaks } from '../debug/tweaks';
 import { runFurnitureAction } from '../house/actions';
@@ -26,6 +26,7 @@ import {
 } from '../house/architecture';
 import { buildGhost, buildPiece, type PieceInstance } from '../house/assemble';
 import { approachFor, removeFurniture } from '../house/build';
+import { buildGarden } from '../house/garden';
 import { HOUSE_ORIGIN, ROOM, WALL_H, WALL_T, type HouseLayout } from '../house/layout';
 import { houseUniforms } from '../house/materials';
 import { SPACE_NAMES } from '../house/rooms';
@@ -36,6 +37,7 @@ import { emit, sfx } from '../state/events';
 import { registerInteractable, runtime, type InteractAction } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
 import { getHouse, onHouseChange } from '../world/places';
+import { Butterfly } from './Wildlife';
 
 const LAMPS = 8;
 
@@ -347,6 +349,28 @@ function Lamps({ pieces }: { pieces: PieceInstance[] }) {
   );
 }
 
+// ── the garden courtyard: lawn, beds, flowers, Bézier-handle butterflies ─────
+const GARDEN_RANGE: [number, number] = [1.2, 2.6];
+const flatGround = () => 0;
+
+function Garden({ L }: { L: HouseLayout }) {
+  const layers = useMemo(() => L.rooms.filter((r) => r.def.id === 'garden').map((r) => buildGarden(L, r, r.index + 1)), [L]);
+  useEffect(() => () => layers.forEach((g) => g.dispose()), [layers]);
+  const visible = useCallback(() => runtime.location === 'house' && houseUniforms.built.value >= 1, []);
+  return (
+    <>
+      {layers.map((g, i) => (
+        <primitive key={`lawn:${i}`} object={g.group} />
+      ))}
+      {layers.flatMap((g, gi) =>
+        [0, 1, 2].map((i) => (
+          <Butterfly key={`fly:${gi}:${i}`} index={gi * 3 + i} prefix="garden-butterfly" home={g.centre} range={GARDEN_RANGE} ground={flatGround} visible={visible} />
+        ))
+      )}
+    </>
+  );
+}
+
 // ── the house ────────────────────────────────────────────────────────────────
 export function House() {
   const L = useHouseLayout();
@@ -376,6 +400,7 @@ export function House() {
     <group visible={visible} name="house">
       <Architecture L={L} styleId={styleId} />
       <Furniture L={L} />
+      <Garden L={L} />
       <Ghosts L={L} />
     </group>
   );

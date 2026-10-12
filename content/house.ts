@@ -15,6 +15,8 @@
  *    hotspots: portraits, landscapes, portals, the display case, chapel windows…
  *
  * Doors connect where both neighbouring rooms have a door on the shared side.
+ * The garden sits in the middle as an open courtyard: every room around it
+ * opens onto it, and their windows look into it.
  */
 import type { HouseDesign } from '@/app/otherworld/house/types';
 
@@ -24,7 +26,7 @@ export const house: HouseDesign = {
   rooms: [
     {
       room: 'garden',
-      at: [1, 3],
+      at: [1, 1],
       furniture: {
         centrepiece: 'exit-portal',
         'big-tree': 'art-oak',
@@ -80,7 +82,7 @@ export const house: HouseDesign = {
     },
     {
       room: 'questhall',
-      at: [1, 1],
+      at: [1, 3],
       furniture: {
         'portrait-1': 'figma-frame',
         'landscape-1': 'gilded-frame-wide',

@@ -1,5 +1,6 @@
 /** Garden: the exit portal, trees, plants. */
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { UI, WOOD, type Kit } from '../kit';
 import { portalMaterial } from '../materials';
 import { anchor, canvasTexture, handle, workArt } from './common';
@@ -150,13 +151,48 @@ const artOak: FurnitureDef = {
     k.cyl(0.08, 0.12, 0.7, '#5b4636', [-0.12, 1.6, 0.05], 5, { rot: [0.2, 0, 0.7] });
   },
   extras: (c) => {
-    const art = workArt(c.work, 2.3, 2.3, [0, 3.1, 0], { circle: true, lit: false });
+    const art = workArt(c.work, 2.4, 2.4, [0, 2.75, 0], { lit: true, geometry: canopyGeometry(c.seed, 2.4) });
+    art.object.castShadow = true;
     const tick = (t: number) => {
-      art.object.rotation.y = Math.sin(t * 0.3 + c.seed) * 0.25;
+      art.object.rotation.z = Math.sin(t * 0.7 + c.seed) * 0.025;
+      art.object.rotation.x = Math.cos(t * 0.55 + c.seed) * 0.02;
     };
     return [{ ...art, tick }];
   },
 };
+
+/**
+ * A puffy, low-poly canopy whose UVs are a top-down projection, so the
+ * artwork reads across the whole crown from above (and the sides shade it).
+ */
+function canopyGeometry(seed: number, size: number) {
+  let s = seed * 9301 + 49297;
+  const r = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  const parts: THREE.BufferGeometry[] = [];
+  const puffs: [number, number, number, number][] = [[0, 0.25, 0, 0.78]];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + r() * 0.5;
+    const d = 0.55 + r() * 0.2;
+    puffs.push([Math.cos(a) * d, r() * 0.25 - 0.05, Math.sin(a) * d, 0.42 + r() * 0.16]);
+  }
+  for (const [x, y, z, rad] of puffs) {
+    const g = new THREE.IcosahedronGeometry(rad, 1).toNonIndexed();
+    g.scale(1, 0.78, 1);
+    g.translate(x, y, z);
+    parts.push(g);
+  }
+  const merged = mergeGeometries(parts, false)!;
+  parts.forEach((p) => p.dispose());
+  const pos = merged.attributes.position;
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    uv[i * 2] = pos.getX(i) / size + 0.5;
+    uv[i * 2 + 1] = 0.5 - pos.getZ(i) / size;
+  }
+  merged.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  merged.computeVertexNormals();
+  return merged;
+}
 
 /** Branches are pen-tool paths, drooping, every anchor still selected. */
 const bezierWillow: FurnitureDef = {

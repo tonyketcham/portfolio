@@ -81,6 +81,8 @@ export interface ArtOptions {
   border?: boolean;
   /** Override the work's own fx. */
   fx?: Work['fx'];
+  /** Draw it on this geometry instead of a plane (UVs should span the art). */
+  geometry?: THREE.BufferGeometry;
 }
 
 /** A portfolio piece as a plane (w × h, facing +z), texture streamed in. */
@@ -97,7 +99,7 @@ export function workArt(work: Work | undefined, w: number, h: number, pos: V3, o
   });
   mat.uniforms.uSize.value.set(w, h);
   mat.uniforms.uBorder.value = opts.border ? 1 : 0;
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  const mesh = new THREE.Mesh(opts.geometry ?? new THREE.PlaneGeometry(w, h), mat);
   mesh.position.set(...pos);
   mesh.userData.work = work?.slug;
   const src = cover?.kind === 'image' ? cover.src : cover?.kind === 'mux' ? cover.poster : undefined;

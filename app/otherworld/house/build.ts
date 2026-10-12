@@ -3,6 +3,7 @@
  * Shared by the in-world right-click menu and the furniture creation menu.
  */
 import { emit, sfx } from '../state/events';
+import { playPose } from '../state/runtime';
 import { levelForXp } from '../state/skills';
 import { gameState } from '../state/store';
 import { getHouse } from '../world/places';
@@ -73,6 +74,7 @@ export function buildFurniture(key: string, id: string) {
   g.setBuilding(null);
   g.walkTo(approachFor(getHouse().layout, h), () => {
     const { x, z } = hotspotPoint(h);
+    playPose('build', { face: { x, z }, dur: 1.05 });
     sfx('hammer');
     emit({ type: 'burst', kind: 'sawdust', x, y: 0.6, z, count: 18 });
     window.setTimeout(() => {
@@ -95,6 +97,7 @@ export function removeFurniture(key: string) {
   const name = FURNITURE.get(h.furniture)?.name ?? 'thing';
   g.walkTo(approachFor(getHouse().layout, h), () => {
     const { x, z } = hotspotPoint(h);
+    playPose('saw', { face: { x, z }, dur: 0.9 });
     sfx('saw');
     emit({ type: 'burst', kind: 'sawdust', x, y: 0.5, z, count: 14 });
     window.setTimeout(() => {

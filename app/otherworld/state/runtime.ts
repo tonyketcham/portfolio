@@ -4,6 +4,7 @@
  * can click on in the world.
  */
 import * as THREE from 'three';
+import { POSES, type PoseKind } from '../avatar/poses';
 import type { TilePos } from '../world/pathfinding';
 import { PLACES, type Place, type PlaceId } from '../world/places';
 import type { Tone } from './store';
@@ -40,6 +41,19 @@ export interface Interactable {
   passive?: boolean;
 }
 
+/** What the player's body is doing besides walking (sitting, hammering, praying…). */
+export interface ActivePose {
+  kind: PoseKind;
+  /** Seconds since it started. */
+  t: number;
+  /** Seconds it lasts; Infinity holds it until the player moves. */
+  dur: number;
+  /** Turn to face this world point. */
+  face?: { x: number; z: number };
+  /** Settle here instead of on the tile (chairs, benches), facing `yaw`. */
+  seat?: { x: number; z: number; yaw: number };
+}
+
 export interface Overhead {
   text: string;
   until: number;
@@ -56,6 +70,7 @@ export const runtime = {
     /** Seconds since last step, for the idle sit-down. */
     idle: 0,
     landed: false,
+    pose: null as ActivePose | null,
   },
   overhead: { text: '', until: 0 },
   /** Speech above NPCs and objects. */
@@ -113,6 +128,15 @@ export function interactableFor(object: THREE.Object3D | null): Interactable | u
     o = o.parent;
   }
   return undefined;
+}
+
+/** Play a pose on the player. Walking anywhere cancels it. */
+export function playPose(kind: PoseKind, opts: { face?: { x: number; z: number }; seat?: ActivePose['seat']; dur?: number } = {}) {
+  runtime.player.pose = { kind, t: 0, dur: opts.dur ?? POSES[kind].dur, face: opts.face, seat: opts.seat };
+}
+
+export function clearPose() {
+  runtime.player.pose = null;
 }
 
 export function sayOverhead(text: string, seconds = 4) {
