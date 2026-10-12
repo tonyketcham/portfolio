@@ -32,7 +32,7 @@ export interface EffectLayer {
 
 const layer = (id: EffectId, enabled: boolean, amount: number): EffectLayer => ({ id, enabled, amount });
 
-export const EFFECT_PRESETS: Record<string, { label: string; stack: EffectLayer[] }> = {
+export const EFFECT_PRESETS: Record<string, { label: string; stack: EffectLayer[]; palette?: [string, string, string] }> = {
   canvas: {
     label: 'Canvas',
     stack: [
@@ -59,6 +59,7 @@ export const EFFECT_PRESETS: Record<string, { label: string; stack: EffectLayer[
   },
   handheld: {
     label: 'Handheld',
+    palette: ['#1b2a17', '#7d9a3c', '#e6f1c4'],
     stack: [
       layer('gradient', true, 1),
       layer('dither', true, 0.8),
@@ -66,6 +67,19 @@ export const EFFECT_PRESETS: Record<string, { label: string; stack: EffectLayer[
       layer('posterize', false, 0.5),
       layer('halftone', false, 0.6),
       layer('chroma', false, 0.2),
+      layer('kaleido', false, 0.5),
+    ],
+  },
+  ultraviolet: {
+    label: 'Ultraviolet',
+    palette: ['#0b1020', '#e879f9', '#fef3c7'],
+    stack: [
+      layer('gradient', true, 0.75),
+      layer('halftone', true, 0.45),
+      layer('chroma', true, 0.35),
+      layer('crt', true, 0.2),
+      layer('dither', false, 0.3),
+      layer('posterize', false, 0.5),
       layer('kaleido', false, 0.5),
     ],
   },

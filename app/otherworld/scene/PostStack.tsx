@@ -48,7 +48,7 @@ export function PostStack() {
     u.uSceneRes.value.set(w, h);
     u.uDpr.value = dpr;
 
-    writeStackUniforms(post.material, g.effects, worldness, stack);
+    writeStackUniforms(post.material, g.effects, worldness, stack, g.palette);
     u.uGlitch.value =
       g.stage === 'unfolding' ? Math.sin(Math.PI * runtime.intro.unfold) ** 3 * stack.glitch : 0;
     postState.flash = Math.max(0, postState.flash - dt * 3);

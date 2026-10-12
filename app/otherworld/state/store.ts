@@ -114,6 +114,8 @@ interface GameState {
   inventory: (ItemStack | null)[];
   quests: Record<string, 'seen' | 'done'>;
   effects: EffectLayer[];
+  /** Gradient-map palette set by the last preset (overrides the tweak default). */
+  palette: [string, string, string] | null;
   plugins: Plugins;
   hidden: Record<string, true>;
   locked: Record<string, true>;
@@ -193,6 +195,7 @@ export const useGame = create<GameState>()(
       inventory: Array(INVENTORY_SIZE).fill(null),
       quests: {},
       effects: cloneStack('canvas'),
+      palette: null,
       plugins: {
         tileMarkers: true,
         destinationTile: true,
@@ -297,8 +300,9 @@ export const useGame = create<GameState>()(
           return { effects: list };
         }),
       applyPreset: (name) => {
-        if (!EFFECT_PRESETS[name]) return;
-        set({ effects: cloneStack(name) });
+        const preset = EFFECT_PRESETS[name];
+        if (!preset) return;
+        set({ effects: cloneStack(name), palette: preset.palette ?? null });
       },
 
       togglePlugin: (key) => set((s) => ({ plugins: { ...s.plugins, [key]: !s.plugins[key] } })),
@@ -359,6 +363,7 @@ export const useGame = create<GameState>()(
           markers: {},
           introSeen: false,
           effects: cloneStack('canvas'),
+          palette: null,
         }),
     }),
     {
@@ -371,6 +376,7 @@ export const useGame = create<GameState>()(
         inventory: s.inventory,
         quests: s.quests,
         effects: s.effects,
+        palette: s.palette,
         plugins: s.plugins,
         markers: s.markers,
         hidden: s.hidden,

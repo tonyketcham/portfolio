@@ -13,7 +13,8 @@ export type GameEvent =
   | { type: 'focus-camera'; x: number; y: number; z: number; distance?: number; yaw?: number; pitch?: number }
   | { type: 'release-camera' }
   | { type: 'regrow' }
-  | { type: 'cross'; x: number; y: number; color: 'yellow' | 'red' };
+  | { type: 'cross'; x: number; y: number; color: 'yellow' | 'red' }
+  | { type: 'dial-target'; panel: string };
 
 export type SfxName =
   | 'click'

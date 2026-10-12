@@ -193,7 +193,8 @@ export function writeStackUniforms(
   material: THREE.ShaderMaterial,
   effects: EffectLayer[],
   worldness: number,
-  stack: Tweaks['Modyfi stack']
+  stack: Tweaks['Modyfi stack'],
+  palette?: [string, string, string] | null
 ) {
   const u = material.uniforms;
   const order: number[] = [];
@@ -225,7 +226,8 @@ export function writeStackUniforms(
   u.uPosterLevels.value = stack.posterize.levels;
   u.uScan.value = stack.scanlines.density;
   u.uSpread.value = stack.chroma.spread;
-  (u.uGradA.value as THREE.Vector3).copy(srgbCached(stack.gradientMap.dark));
-  (u.uGradB.value as THREE.Vector3).copy(srgbCached(stack.gradientMap.mid));
-  (u.uGradC.value as THREE.Vector3).copy(srgbCached(stack.gradientMap.light));
+  const [dark, mid, light] = palette ?? [stack.gradientMap.dark, stack.gradientMap.mid, stack.gradientMap.light];
+  (u.uGradA.value as THREE.Vector3).copy(srgbCached(dark));
+  (u.uGradB.value as THREE.Vector3).copy(srgbCached(mid));
+  (u.uGradC.value as THREE.Vector3).copy(srgbCached(light));
 }

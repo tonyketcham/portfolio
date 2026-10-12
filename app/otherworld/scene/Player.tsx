@@ -433,13 +433,13 @@ export function Player() {
           <circleGeometry args={[0.05, 12]} />
           <meshBasicMaterial color="#fafafa" />
         </mesh>
-        <group ref={(g) => void (g && (pupils.current[k] = g))}>
+        <group ref={(g: THREE.Group | null) => void (g && (pupils.current[k] = g))}>
           <mesh position-z={0.004}>
             <circleGeometry args={[0.026, 10]} />
             <meshBasicMaterial color="#09090b" />
           </mesh>
         </group>
-        <mesh position={[0, 0.03, 0.008]} ref={(m) => void (m && (lids.current[k] = m))} scale={[1, 0.05, 1]}>
+        <mesh position={[0, 0.03, 0.008]} ref={(m: THREE.Mesh | null) => void (m && (lids.current[k] = m))} scale={[1, 0.05, 1]}>
           <planeGeometry args={[0.11, 0.06]} />
           <meshBasicMaterial color="#09090b" />
         </mesh>
@@ -465,7 +465,7 @@ export function Player() {
             <mesh
               geometry={boneGeo}
               material={legMat}
-              ref={(m) => {
+              ref={(m: THREE.Mesh | null) => {
                 if (!m) return;
                 const leg = legsRef.current.find((l) => l.side === side) ?? ({ side } as Leg);
                 leg.thigh = m;
@@ -475,7 +475,7 @@ export function Player() {
             <mesh
               geometry={boneGeo}
               material={legMat}
-              ref={(m) => {
+              ref={(m: THREE.Mesh | null) => {
                 if (!m) return;
                 const leg = legsRef.current.find((l) => l.side === side);
                 if (leg) leg.shin = m;
@@ -484,14 +484,14 @@ export function Player() {
             <mesh
               geometry={kneeGeo}
               material={kneeMat}
-              ref={(m) => {
+              ref={(m: THREE.Mesh | null) => {
                 if (!m) return;
                 const leg = legsRef.current.find((l) => l.side === side);
                 if (leg) leg.knee = m;
               }}
             />
             <group
-              ref={(g) => {
+              ref={(g: THREE.Group | null) => {
                 if (!g) return;
                 const leg = legsRef.current.find((l) => l.side === side);
                 if (leg) leg.foot = g;

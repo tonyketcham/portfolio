@@ -173,11 +173,15 @@ export function runChatCommand(raw: string): boolean {
     case 'type':
       emit({ type: 'spawn-letters', text: args.join(' ') || 'hello' });
       break;
+    case 'target':
+      if (!s.dialOpen) s.setDialOpen(true);
+      window.setTimeout(() => emit({ type: 'dial-target', panel: args.join(' ') || 'Modyfi stack' }), 60);
+      break;
     case 'classic':
       window.location.href = '/classic';
       break;
     case 'help':
-      s.say('Commands: ::dial ::tp <zone> ::tea ::shroom ::type <text> ::undo ::intro ::max ::reset ::classic', 'system');
+      s.say('Commands: ::dial ::target <panel> ::tp <zone> ::tea ::shroom ::type <text> ::undo ::intro ::max ::reset ::classic', 'system');
       break;
     default:
       s.say(`Unknown command ::${cmd}. Try ::help`, 'system');

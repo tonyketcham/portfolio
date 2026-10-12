@@ -114,7 +114,7 @@ function Butterfly({ index }: { index: number }) {
     <group ref={group}>
       <mesh geometry={anchorGeo} material={anchorMat} rotation-z={Math.PI / 4} userData={{ interactable: id }} />
       {[0, 1].map((i) => (
-        <group key={i} ref={(w) => void (w && (wings.current[i] = w))} rotation-y={i === 0 ? 0 : Math.PI}>
+        <group key={i} ref={(w: THREE.Group | null) => void (w && (wings.current[i] = w))} rotation-y={i === 0 ? 0 : Math.PI}>
           <mesh geometry={lineGeo} material={lineMat} scale={[0.42, 1, 1]} userData={{ interactable: id }} />
           <mesh geometry={knobGeo} material={knobMat} position-x={0.42} userData={{ interactable: id }} />
         </group>

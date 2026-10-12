@@ -130,8 +130,25 @@ function openMenuAt(x: number, y: number) {
   g.openMenu({ x, y, options });
 }
 
-function handleTap(x: number, y: number) {
+/** Which DialKit panel tunes the thing under the pointer. */
+function dialPanelFor(it: Interactable | undefined): string {
+  if (!it) return 'World';
+  if (it.id === 'player') return 'Player';
+  if (it.id.startsWith('work:') || it.id === 'fixture:hero') return 'Artboards';
+  if (it.id.startsWith('critter:') || it.id.startsWith('letter:') || it.id.startsWith('drop:') || it.id.startsWith('shroom:'))
+    return 'Physics';
+  if (it.id.startsWith('butterfly:') || it.id.startsWith('fixture:fractal')) return 'Flora';
+  return 'Modyfi stack';
+}
+
+function handleTap(x: number, y: number, alt = false) {
   const g = gameState();
+  if (alt) {
+    const it = pickInteractables(x, y, 1, true)[0];
+    if (!g.dialOpen) g.setDialOpen(true);
+    window.setTimeout(() => emit({ type: 'dial-target', panel: dialPanelFor(it) }), 60);
+    return;
+  }
   if (g.menu) {
     g.closeMenu();
     return;
@@ -352,7 +369,7 @@ export function Interaction() {
         const now = performance.now();
         if (g.stage === 'artboard' && now - lastTap < 350) g.setStage('unfolding');
         lastTap = now;
-        handleTap(e.clientX, e.clientY);
+        handleTap(e.clientX, e.clientY, e.altKey);
       }
       if (mode === 'drag' && dragging) {
         const v = new THREE.Vector3();
