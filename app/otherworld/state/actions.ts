@@ -5,6 +5,8 @@ import { workBySlug } from '@/content/works';
 import { tweaks } from '../debug/tweaks';
 import { zoneById, zones } from '@/content/zones';
 import { getWorld, worldToTile } from '../world/map';
+import type { TilePos } from '../world/pathfinding';
+import { PLACES, type PlaceId } from '../world/places';
 import { emit, sfx } from './events';
 import { ITEMS, TEAS, itemName, type ItemStack } from './items';
 import { runtime, sayOverhead } from './runtime';
@@ -15,16 +17,46 @@ export function giveTea(variant = Math.floor(Math.random() * TEAS.length)) {
   return gameState().addItem({ id: 'tea', variant });
 }
 
+/**
+ * Go somewhere. Inside the same place it's a cut & paste; between the house
+ * and the island it's a portal trip (dithered fade, loading box, arrival).
+ */
+export function travel(to: PlaceId, tile?: TilePos, onArrive?: () => void) {
+  const g = gameState();
+  if (g.location === to) {
+    g.teleportTo(tile ?? PLACES[to].spawn, onArrive);
+    return;
+  }
+  emit({ type: 'travel', to, tile, onArrive });
+}
+
 export function teleportToZone(id: string) {
+  if (id === 'house') return travel('house');
   const zone = zoneById.get(id);
   if (!zone) return;
   const world = getWorld();
-  if (id === 'spawn') return gameState().teleportTo(world.spawn);
+  if (id === 'spawn') return travel('island', world.spawn);
   // Land just inside the zone on the side facing spawn.
   const [cx, cz] = zone.center;
   const len = Math.hypot(cx, cz) || 1;
-  gameState().teleportTo(worldToTile(cx - (cx / len) * (zone.radius - 2), cz - (cz / len) * (zone.radius - 2)));
+  travel('island', worldToTile(cx - (cx / len) * (zone.radius - 2), cz - (cz / len) * (zone.radius - 2)));
 }
+
+/** Build mode only makes sense at home. */
+export function toggleBuildMode(force?: boolean) {
+  const g = gameState();
+  const next = force ?? !g.buildMode;
+  if (next && g.location !== 'house') {
+    g.say('You can only build in your own house. Head back through the house portal.', 'system');
+    return;
+  }
+  g.setBuildMode(next);
+  g.say(next ? 'Building mode on. Ghosts show the empty hotspots; right-click to build or remove.' : 'Building mode off.', 'system');
+  sfx(next ? 'hammer' : 'click');
+}
+
+/** Read by DialBridge when it mounts, so ::target works before the panel has loaded. */
+export const dialQueue = { panel: null as string | null };
 
 export function mushroomMode(seconds = 25) {
   gameState().eatMushroom(seconds);
@@ -145,11 +177,27 @@ export function runChatCommand(raw: string): boolean {
     case 'tp':
     case 'tele': {
       const target = args[0] ?? 'spawn';
+      if (target === 'house' || target === 'home') {
+        travel('house');
+        break;
+      }
       const zone = zones.find((z) => z.id === target || z.name.toLowerCase().includes(target.toLowerCase()));
       if (zone) teleportToZone(zone.id);
-      else s.say(`No zone called "${target}". Try: ${zones.map((z) => z.id).join(', ')}`, 'system');
+      else s.say(`No zone called "${target}". Try: house, ${zones.map((z) => z.id).join(', ')}`, 'system');
       break;
     }
+    case 'home':
+    case 'house':
+      travel('house');
+      break;
+    case 'island':
+    case 'out':
+    case 'outside':
+      travel('island');
+      break;
+    case 'build':
+      toggleBuildMode();
+      break;
     case 'tea':
       giveTea();
       break;
@@ -173,15 +221,19 @@ export function runChatCommand(raw: string): boolean {
     case 'type':
       emit({ type: 'spawn-letters', text: args.join(' ') || 'hello' });
       break;
-    case 'target':
-      if (!s.dialOpen) s.setDialOpen(true);
-      window.setTimeout(() => emit({ type: 'dial-target', panel: args.join(' ') || 'Modyfi stack' }), 60);
+    case 'target': {
+      const panel = args.join(' ') || 'Modyfi stack';
+      if (!s.dialOpen) {
+        dialQueue.panel = panel;
+        s.setDialOpen(true);
+      } else emit({ type: 'dial-target', panel });
       break;
+    }
     case 'classic':
       window.location.href = '/classic';
       break;
     case 'help':
-      s.say('Commands: ::dial ::target <panel> ::tp <zone> ::tea ::shroom ::type <text> ::undo ::intro ::max ::reset ::classic', 'system');
+      s.say('Commands: ::home ::island ::build ::dial ::target <panel> ::tp <zone> ::tea ::shroom ::type <text> ::undo ::intro ::max ::reset ::classic', 'system');
       break;
     default:
       s.say(`Unknown command ::${cmd}. Try ::help`, 'system');
@@ -218,20 +270,27 @@ export function runDebugAction(panel: string, path: string) {
     case 'resetSave':
       resetSave();
       break;
+    case 'buildMode':
+      toggleBuildMode();
+      break;
+    case 'resetFurniture':
+      gameState().resetHouse();
+      gameState().say('The house is back to how Tony left it.', 'system');
+      break;
     default:
       console.info('[dialkit] unhandled action', panel, path);
   }
 }
 
 
-/** Cut & paste yourself to a work, then inspect it. */
+/** Cut & paste yourself to a work on the island (via the portal if you're home), then inspect it. */
 export function travelToWork(slug: string) {
   const world = getWorld();
   const p = world.placements.find((pl) => pl.work.slug === slug);
   if (!p) return;
   const g = gameState();
   g.setTab(null);
-  g.teleportTo(p.approach, () => {
+  travel('island', p.approach, () => {
     const it = runtime.interactables.get(`work:${slug}`);
     const inspect = it?.actions.find((a) => a.verb === 'Inspect');
     if (inspect) inspect.run();

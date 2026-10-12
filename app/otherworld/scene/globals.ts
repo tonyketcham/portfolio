@@ -1,47 +1,34 @@
 /**
- * Uniform objects shared (by reference) across every custom material, plus the
+ * TSL uniforms shared (by reference) across every node material, plus the
  * time-of-day model. One component (<WorldClock/>) writes these each frame.
  *
- * Colour convention for custom shaders: colours are passed as sRGB triples in
- * Vector3s, shading happens in sRGB, and each shader converts to linear on
- * output (the render target expects linear light).
+ * Colour convention: everything is in three's linear working space. Hex
+ * strings go through THREE.Color (sRGB → linear) and the render pipeline does
+ * the final linear → sRGB conversion once, in the post stack.
  */
 import * as THREE from 'three';
+import { float, select, uniform, vec2 } from 'three/tsl';
+import type { F, V2 } from '../shaders/common';
 
-export const srgb = (hex: string) => {
-  const c = new THREE.Color();
-  c.setStyle(hex, THREE.SRGBColorSpace);
-  const out = c.clone().convertLinearToSRGB();
-  return new THREE.Vector3(out.r, out.g, out.b);
-};
-
-const srgbCache = new Map<string, THREE.Vector3>();
-/** Read-only cached variant for per-frame `.copy()` calls. Never mutate the result. */
-export const srgbCached = (hex: string) => {
-  let v = srgbCache.get(hex);
-  if (!v) {
-    v = srgb(hex);
-    srgbCache.set(hex, v);
-  }
-  return v;
-};
+const lin = (hex: string) => new THREE.Color(hex);
 
 export const globalUniforms = {
-  uTime: { value: 0 },
-  uFogColor: { value: srgb('#a5b4cf') },
-  uFogNear: { value: 22 },
-  uFogFar: { value: 70 },
-  uSunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3).normalize() },
-  uSunColor: { value: srgb('#fff4d6') },
-  uAmbient: { value: srgb('#6b7280') },
-  uMushroom: { value: 0 },
-  uUnfold: { value: 1 },
-  /** Radius (world units) of the intro reveal wave. ≥ 80 = fully revealed. */
-  uReveal: { value: 100 },
-  uNight: { value: 0 },
-  uSkyTop: { value: srgb('#2563eb') },
-  uSkyHorizon: { value: srgb('#dbeafe') },
-  uVoid: { value: srgb('#09090b') },
+  uTime: uniform(0),
+  uFogColor: uniform(lin('#a5b4cf')),
+  uFogNear: uniform(22),
+  uFogFar: uniform(70),
+  uSunDir: uniform(new THREE.Vector3(0.4, 0.8, 0.3).normalize()),
+  uSunColor: uniform(lin('#fff4d6')),
+  uAmbient: uniform(lin('#6b7280')),
+  uMushroom: uniform(0),
+  uUnfold: uniform(1),
+  /** Radius (world units) of the island's reveal wave. ≥ 80 = fully revealed. */
+  uReveal: uniform(100),
+  uNight: uniform(0),
+  uSkyTop: uniform(lin('#2563eb')),
+  uSkyHorizon: uniform(lin('#dbeafe')),
+  uVoid: uniform(lin('#09090b')),
+  uAccent: uniform(lin('#3b82f6')),
 };
 
 interface SkyKey {
@@ -68,30 +55,31 @@ const KEYS: SkyKey[] = [
 
 const tmpA = new THREE.Color();
 const tmpB = new THREE.Color();
-function mixHex(a: string, b: string, t: number, out: THREE.Vector3) {
+/** Mix two hex colours perceptually (in sRGB), store the linear result. */
+function mixHex(a: string, b: string, t: number, out: THREE.Color) {
   tmpA.setStyle(a, THREE.SRGBColorSpace).convertLinearToSRGB();
   tmpB.setStyle(b, THREE.SRGBColorSpace).convertLinearToSRGB();
   tmpA.lerp(tmpB, t);
-  return out.set(tmpA.r, tmpA.g, tmpA.b);
+  return out.copy(tmpA).convertSRGBToLinear();
 }
 
 export interface SkyState {
-  top: THREE.Vector3;
-  horizon: THREE.Vector3;
-  fog: THREE.Vector3;
-  sun: THREE.Vector3;
-  ambient: THREE.Vector3;
+  top: THREE.Color;
+  horizon: THREE.Color;
+  fog: THREE.Color;
+  sun: THREE.Color;
+  ambient: THREE.Color;
   night: number;
   sunDir: THREE.Vector3;
   sunIntensity: number;
 }
 
 const state: SkyState = {
-  top: new THREE.Vector3(),
-  horizon: new THREE.Vector3(),
-  fog: new THREE.Vector3(),
-  sun: new THREE.Vector3(),
-  ambient: new THREE.Vector3(),
+  top: new THREE.Color(),
+  horizon: new THREE.Color(),
+  fog: new THREE.Color(),
+  sun: new THREE.Color(),
+  ambient: new THREE.Color(),
   night: 0,
   sunDir: new THREE.Vector3(),
   sunIntensity: 1,
@@ -140,17 +128,15 @@ export function revealScale(x: number, z: number) {
   return t <= 0 ? 0 : 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 }
 
-/** GLSL twin of revealScale for instanced props (uses uReveal). */
-export const glslReveal = /* glsl */ `
-uniform float uReveal;
-float revealScale(vec2 xz) {
-  if (uReveal >= 80.0) return 1.0;
-  float t = clamp((uReveal - 6.0 - length(xz)) / 3.0, 0.0, 1.0);
-  if (t <= 0.0) return 0.0;
-  float c1 = 1.70158; float c3 = c1 + 1.0; float u = t - 1.0;
-  return 1.0 + c3 * u * u * u + c1 * u * u;
-}
-`;
+/** TSL twin of revealScale for instanced props. */
+export const revealScaleNode = (xz: V2): F => {
+  const R = globalUniforms.uReveal;
+  const t = R.sub(6).sub(vec2(xz).length()).div(3).clamp(0, 1);
+  const u = t.sub(1);
+  const c1 = 1.70158;
+  const back = float(1).add(u.mul(u).mul(u).mul(c1 + 1)).add(u.mul(u).mul(c1));
+  return select(R.greaterThanEqual(80), float(1), select(t.lessThanEqual(0), float(0), back));
+};
 
 /** Push a time of day into every shared uniform. Returns the sky state for lights/fog. */
 export function applyTimeOfDay(tod: number) {

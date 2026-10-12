@@ -4,9 +4,11 @@ import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { SkillId } from '@/content/works';
 import type { TilePos } from '../world/pathfinding';
-import { EFFECT_PRESETS, type EffectId, type EffectLayer } from './effects';
+import { rebuildHouse, type HouseEdits, type PlaceId } from '../world/places';
+import type { HouseStyleId } from '../house/types';
+import { EFFECT_PRESETS, effectById, type EffectId, type EffectLayer } from './effects';
 import { sfx } from './events';
-import type { ItemStack } from './items';
+import { ITEMS, type ItemStack } from './items';
 import { SKILLS, levelForXp, skillById } from './skills';
 
 /** localStorage that never throws (private windows, blocked storage, previews). */
@@ -35,7 +37,7 @@ const safeStorage: StateStorage = {
 };
 
 export type Stage = 'boot' | 'artboard' | 'unfolding' | 'world';
-export type Tab = 'inventory' | 'skills' | 'quests' | 'layers' | 'effects' | 'plugins';
+export type Tab = 'inventory' | 'skills' | 'quests' | 'layers' | 'effects' | 'house' | 'plugins';
 export type Tool = 'move' | 'text';
 export type Tone = 'npc' | 'object' | 'item' | 'work' | 'player' | 'plain' | 'zone';
 
@@ -71,6 +73,8 @@ export interface Destination {
   onArrive?: () => void;
   /** Teleports skip walking entirely. */
   teleport?: boolean;
+  /** Appear there this frame (portal arrivals), no cut / paste. */
+  instant?: boolean;
 }
 
 export interface Plugins {
@@ -127,6 +131,17 @@ interface GameState {
   dialOpen: boolean;
   selected: string | null;
   zoneId: string | null;
+  /** Where the player is: the house, or the island outside it. */
+  location: PlaceId;
+  /** The island unfolds the first time you walk out onto it. */
+  islandVisited: boolean;
+  buildMode: boolean;
+  /** Visitor furniture changes, by hotspot key. */
+  houseEdits: HouseEdits;
+  houseStyle: HouseStyleId | null;
+  /** Open furniture creation menu (hotspot key). */
+  building: string | null;
+  loading: string | null;
 
   setStage: (stage: Stage) => void;
   setTab: (tab: Tab | null) => void;
@@ -156,6 +171,7 @@ interface GameState {
   toggleMarker: (key: string) => void;
   walkTo: (tile: TilePos, onArrive?: () => void) => void;
   teleportTo: (tile: TilePos, onArrive?: () => void) => void;
+  appearAt: (tile: TilePos, onArrive?: () => void) => void;
   cancelWalk: () => void;
   toggleRun: () => void;
   setCaffeine: (value: number) => void;
@@ -164,6 +180,14 @@ interface GameState {
   select: (id: string | null) => void;
   setZone: (id: string | null) => void;
   resetProgress: () => void;
+  setLocation: (location: PlaceId) => void;
+  setIslandVisited: () => void;
+  setBuildMode: (on: boolean) => void;
+  setBuilding: (key: string | null) => void;
+  setFurniture: (key: string, id: string | null) => void;
+  resetHouse: () => void;
+  setHouseStyle: (style: HouseStyleId | null) => void;
+  setLoading: (text: string | null) => void;
 }
 
 let lineId = 1;
@@ -217,6 +241,13 @@ export const useGame = create<GameState>()(
       dialOpen: false,
       selected: null,
       zoneId: null,
+      location: 'house',
+      islandVisited: false,
+      buildMode: false,
+      houseEdits: {},
+      houseStyle: null,
+      building: null,
+      loading: null,
 
       setStage: (stage) => set(stage === 'world' ? { stage, introSeen: true } : { stage }),
       setTab: (tab) => set({ tab }),
@@ -332,6 +363,8 @@ export const useGame = create<GameState>()(
       walkTo: (tile, onArrive) => set({ destination: { seq: destSeq++, tile, onArrive }, menu: null }),
       teleportTo: (tile, onArrive) =>
         set({ destination: { seq: destSeq++, tile, onArrive, teleport: true }, menu: null }),
+      appearAt: (tile, onArrive) =>
+        set({ destination: { seq: destSeq++, tile, onArrive, teleport: true, instant: true }, menu: null }),
       cancelWalk: () => set({ destination: null }),
       toggleRun: () => {
         const { running, caffeine } = get();
@@ -364,7 +397,25 @@ export const useGame = create<GameState>()(
           introSeen: false,
           effects: cloneStack('canvas'),
           palette: null,
+          islandVisited: false,
+          houseEdits: {},
+          houseStyle: null,
         }),
+      setLocation: (location) => set({ location, zoneId: null }),
+      setIslandVisited: () => set({ islandVisited: true }),
+      setBuildMode: (buildMode) => set({ buildMode, building: buildMode ? get().building : null, menu: null }),
+      setBuilding: (building) => set({ building, menu: null }),
+      setFurniture: (key, id) => {
+        const houseEdits = { ...get().houseEdits, [key]: id };
+        rebuildHouse(houseEdits);
+        set({ houseEdits });
+      },
+      resetHouse: () => {
+        rebuildHouse({});
+        set({ houseEdits: {} });
+      },
+      setHouseStyle: (houseStyle) => set({ houseStyle }),
+      setLoading: (loading) => set({ loading }),
     }),
     {
       name: 'untitled-1.save',
@@ -381,18 +432,34 @@ export const useGame = create<GameState>()(
         markers: s.markers,
         hidden: s.hidden,
         caffeine: s.caffeine,
+        islandVisited: s.islandVisited,
+        houseEdits: s.houseEdits,
+        houseStyle: s.houseStyle,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<GameState>;
+        // Saves outlive code: drop anything that no longer exists rather than crash on it.
+        const inventory =
+          Array.isArray(p.inventory) && p.inventory.length === INVENTORY_SIZE
+            ? p.inventory.map((s) => (s && ITEMS[s.id] ? s : null))
+            : current.inventory;
+        const effects =
+          Array.isArray(p.effects) &&
+          p.effects.length === current.effects.length &&
+          p.effects.every((l) => effectById.has(l?.id)) &&
+          new Set(p.effects.map((l) => l.id)).size === p.effects.length
+            ? p.effects
+            : current.effects;
+        const houseEdits = p.houseEdits && typeof p.houseEdits === 'object' ? p.houseEdits : {};
+        if (Object.keys(houseEdits).length) rebuildHouse(houseEdits);
         return {
           ...current,
           ...p,
           skills: { ...current.skills, ...(p.skills ?? {}) },
           plugins: { ...current.plugins, ...(p.plugins ?? {}) },
-          inventory:
-            Array.isArray(p.inventory) && p.inventory.length === INVENTORY_SIZE ? p.inventory : current.inventory,
-          effects:
-            Array.isArray(p.effects) && p.effects.length === current.effects.length ? p.effects : current.effects,
+          inventory,
+          effects,
+          houseEdits,
         };
       },
     }

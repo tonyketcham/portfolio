@@ -1867,3 +1867,205 @@ button.ow-inv-slot:active {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── house: options tab, furniture creation menu, loading box, frame labels ── */
+.ow-house {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ow-house-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ow-house-row .ow-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ow-house-row .ow-btn[data-on='true'] {
+  box-shadow: 0 0 0 2px var(--ow-accent);
+}
+.ow-house-meta {
+  color: #a1a1aa;
+  font-size: 11px;
+}
+.ow-house-meta b {
+  color: #d6a35c;
+}
+.ow-house-styles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.ow-house-style {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: var(--pane-bg);
+  text-align: left;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ow-house-style i {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 2px solid;
+  flex: none;
+}
+.ow-house-style span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ow-house-style em {
+  font-style: normal;
+  color: #71717a;
+}
+.ow-house-style[data-active='true'] {
+  box-shadow: inset 0 0 0 1px var(--ow-accent);
+}
+.ow-house-style[data-locked='true'] em {
+  color: #ef4444;
+}
+.ow-house-rooms {
+  display: flex;
+  flex-direction: column;
+}
+.ow-house-rooms .ow-layer {
+  width: 100%;
+  text-align: left;
+}
+.ow-house-rooms em {
+  font-style: normal;
+  margin-left: auto;
+}
+.ow-btn-quiet {
+  opacity: 0.75;
+  align-self: flex-start;
+}
+
+.ow-buildmenu {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+  z-index: 30;
+}
+.ow-buildmenu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 6px;
+  padding: 8px;
+  overflow-y: auto;
+}
+.ow-buildcard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--pane-bg);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.ow-buildcard:hover {
+  box-shadow: inset 0 0 0 1px var(--ow-accent);
+}
+.ow-buildcard-name {
+  color: var(--ow-orange);
+  font-weight: 600;
+}
+.ow-buildcard-level {
+  font-size: 11px;
+  color: #a3e635;
+}
+.ow-buildcard[data-locked='true'] .ow-buildcard-level {
+  color: #ef4444;
+}
+.ow-buildcard[data-locked='true'] .ow-buildcard-name {
+  color: #a1a1aa;
+}
+.ow-buildcard-mats {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  color: #a1a1aa;
+}
+.ow-buildcard-mats i {
+  font-style: normal;
+}
+.ow-buildcard-xp {
+  font-size: 10px;
+  color: #d4d4d8;
+  margin-top: 2px;
+}
+.ow-buildcard[data-current='true'] {
+  box-shadow: inset 0 0 0 2px #22c55e;
+  cursor: default;
+}
+.ow-buildmenu .ow-hint {
+  padding: 0 10px 10px;
+}
+
+.ow-loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  pointer-events: none;
+  z-index: 60;
+}
+.ow-loading-box {
+  padding: 8px 14px;
+  background: #000;
+  border: 1px solid #fff;
+  color: #fff;
+  font-family: var(--ow-pixel);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.ow-loading-sub {
+  color: #71717a;
+  font-size: 10px;
+}
+
+.ow-roomlabels {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.ow-roomlabel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-size: 11px;
+  color: #93c5fd;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+  will-change: transform;
+}
+.ow-roomlabel span {
+  margin-left: 6px;
+  color: #64748b;
+  font-size: 10px;
+}
+.ow-intro[data-leaving='true'] .ow-roomlabels {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}

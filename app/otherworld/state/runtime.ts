@@ -5,6 +5,7 @@
  */
 import * as THREE from 'three';
 import type { TilePos } from '../world/pathfinding';
+import { PLACES, type Place, type PlaceId } from '../world/places';
 import type { Tone } from './store';
 
 export interface InteractAction {
@@ -66,6 +67,8 @@ export const runtime = {
     /** When set, the camera frames this instead of following the player. */
     focus: null as null | { target: THREE.Vector3; distance: number; yaw: number; pitch: number },
     shake: 0,
+    /** Jump straight to the target next frame (portal arrivals). */
+    snap: false,
   },
   camera: null as THREE.PerspectiveCamera | null,
   canvas: null as HTMLCanvasElement | null,
@@ -82,10 +85,17 @@ export const runtime = {
   },
   fps: 60,
   physicsReady: false,
+  /** Which renderer backend is drawing ('WebGPU' or 'WebGL2'). */
+  backend: '' as string,
+  /** Where the player is. Mirrors the store, readable every frame. */
+  location: 'house' as PlaceId,
   /** Where the player creature is looking (pointer on the ground). */
   lookTarget: new THREE.Vector3(),
   lookActive: 0,
 };
+
+/** The place the player is currently in. */
+export const place = (): Place => PLACES[runtime.location];
 
 export function registerInteractable(item: Interactable) {
   runtime.interactables.set(item.id, item);

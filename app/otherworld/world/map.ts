@@ -46,7 +46,7 @@ export interface WorkPlacement {
 }
 
 export type FixtureKind =
-  | 'hero'
+  | 'house-portal'
   | 'stall'
   | 'tony'
   | 'sign'
@@ -354,8 +354,8 @@ function generate(): WorldMap {
     fixtures.push({ ...rest, y: groundY(f.x, f.z), approach: f.approach ?? tileOf(ax, az) });
   };
 
-  // spawn: the hero floor painting, the tea stall, Tony, a signpost
-  fixture({ id: 'hero', kind: 'hero', name: 'Frame 1 (final)', zone: 'spawn', x: 0, z: 1.2, yaw: 0, block: 0 });
+  // spawn: the portal home, the tea stall, Tony, a signpost
+  fixture({ id: 'house-portal', kind: 'house-portal', name: 'House portal', zone: 'spawn', x: 0.5, z: 0.5, yaw: 0, block: 1.1 });
   fixture({ id: 'stall', kind: 'stall', name: 'Tea stall', zone: 'spawn', x: -5.2, z: -3.4, yaw: Math.PI * 0.3, block: 0.9 });
   fixture({ id: 'tony', kind: 'tony', name: 'Tony', zone: 'spawn', x: -2.6, z: -4.6, yaw: Math.PI * 0.15, block: 0.2 });
   fixture({ id: 'sign', kind: 'sign', name: 'Signpost', zone: 'spawn', x: 3.5, z: -3.5, yaw: -Math.PI * 0.2, block: 0.2 });
@@ -484,7 +484,7 @@ function generate(): WorldMap {
   // 7. Scatter: trees, rocks, grass tufts, amanitas
   const keepClear: [number, number, number][] = [
     ...placements.map((p) => [p.x, p.z, p.display === 'tree' ? 1.6 : 3] as [number, number, number]),
-    ...fixtures.map((f) => [f.x, f.z, f.kind === 'hero' ? 5.5 : 2.2] as [number, number, number]),
+    ...fixtures.map((f) => [f.x, f.z, f.kind === 'house-portal' ? 3.2 : 2.2] as [number, number, number]),
   ];
   const nearRoad = (x: number, z: number, r: number) =>
     edges.some((e) => e.kind === 'road' && e.points.some(([px, pz]) => (px - x) ** 2 + (pz - z) ** 2 < r * r));
@@ -616,7 +616,8 @@ function generate(): WorldMap {
   for (const p of placements) p.approach = nearestFree(p.approach, [0, 0]);
   for (const f of fixtures) f.approach = nearestFree(f.approach, [0, 0]);
 
-  const spawn = nearestFree(worldToTile(0.5, -1.5), [0, 0]);
+  // arrive facing the house portal, just in front of it
+  const spawn = nearestFree(worldToTile(0.5, 2.6), [0, 0]);
 
   return {
     heights,

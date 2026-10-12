@@ -7,11 +7,11 @@ import { runtime } from '../state/runtime';
 import { useGame } from '../state/store';
 import { Artboards } from './Artboards';
 import { Cables } from './Cables';
-import { CameraRig, IntroDirector } from './Director';
+import { CameraRig, IntroDirector, TravelDirector } from './Director';
 import { Environment } from './Environment';
 import { Fixtures } from './Fixtures';
 import { Flora } from './Flora';
-import { Hero } from './Hero';
+import { House } from './House';
 import { Interaction } from './Interaction';
 import { Ambient, Particles } from './Particles';
 import { Player } from './Player';
@@ -43,6 +43,16 @@ function PhysicsReady() {
   return null;
 }
 
+/** Everything on the island; hidden (not unmounted) while you're at home. */
+function Island({ children }: { children: ReactNode }) {
+  const onIsland = useGame((s) => s.location === 'island' && s.stage === 'world');
+  return (
+    <group visible={onIsland} name="island">
+      {children}
+    </group>
+  );
+}
+
 export function Scene() {
   const gravity = useTweaks((t) => t.Physics.gravity);
   const colliders = useTweaks((t) => t.Physics.colliders);
@@ -53,34 +63,47 @@ export function Scene() {
       <Environment />
       <CameraRig />
       <IntroDirector />
+      <TravelDirector />
       <Interaction />
       <PostStack />
       <Suspense fallback={null}>
         <Physics gravity={[0, gravity, 0]} debug={colliders} paused={booting}>
           <PhysicsReady />
-          <Safe name="terrain">
-            <Terrain />
+          <Safe name="house">
+            <House />
           </Safe>
+          <Island>
+            <Safe name="terrain">
+              <Terrain />
+            </Safe>
+            <Safe name="artboards">
+              <Artboards />
+            </Safe>
+            <Safe name="cables">
+              <Cables />
+            </Safe>
+            <Safe name="flora">
+              <Flora />
+            </Safe>
+            <Safe name="shrooms">
+              <Shrooms />
+            </Safe>
+            <Safe name="fixtures">
+              <Fixtures />
+            </Safe>
+            <Safe name="critters">
+              <Critters />
+            </Safe>
+            <Safe name="wildlife">
+              <Butterflies />
+              <Clouds />
+            </Safe>
+            <Safe name="ambient">
+              <Ambient />
+            </Safe>
+          </Island>
           <Safe name="player">
             <Player />
-          </Safe>
-          <Safe name="artboards">
-            <Artboards />
-          </Safe>
-          <Safe name="cables">
-            <Cables />
-          </Safe>
-          <Safe name="flora">
-            <Flora />
-          </Safe>
-          <Safe name="shrooms">
-            <Shrooms />
-          </Safe>
-          <Safe name="fixtures">
-            <Fixtures />
-          </Safe>
-          <Safe name="critters">
-            <Critters />
           </Safe>
           <Safe name="letters">
             <Letters />
@@ -91,16 +114,8 @@ export function Scene() {
           <RewindRecorder />
         </Physics>
       </Suspense>
-      <Safe name="hero">
-        <Hero />
-      </Safe>
       <Safe name="particles">
         <Particles />
-        <Ambient />
-      </Safe>
-      <Safe name="wildlife">
-        <Butterflies />
-        <Clouds />
       </Safe>
     </>
   );

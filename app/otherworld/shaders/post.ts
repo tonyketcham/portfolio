@@ -1,233 +1,267 @@
-/** The Modyfi stack: one full-screen pass of ordered effects over the low-res world. */
-import * as THREE from 'three';
+/**
+ * The render pipeline (WebGPU / TSL).
+ *
+ *  1. The scene renders into a low-res, nearest-filtered pass with an extra
+ *     normal target (MRT). That's the chunky old-school pixel.
+ *  2. Pixel-art outlines: depth silhouettes darken, convex creases catch a
+ *     highlight, computed per scene pixel from depth + normals.
+ *  3. The Modyfi stack: the visitor's ordered effects, composed as a node
+ *     chain. Reordering / toggling rebuilds the chain; amounts are uniforms.
+ *  4. Mushroom warp, unfold glitch, VHS rewind, dithered location fades.
+ *
+ * Works on both WebGPU and the WebGL2 fallback backend.
+ */
+import * as THREE from 'three/webgpu';
+import {
+  Fn,
+  abs,
+  atan,
+  cos,
+  dot,
+  float,
+  floor,
+  fract,
+  mix,
+  mod,
+  mrt,
+  normalView,
+  output,
+  pass,
+  perspectiveDepthToViewZ,
+  screenCoordinate,
+  screenUV,
+  sin,
+  sRGBTransferOETF,
+  step,
+  uniform,
+  vec2,
+  vec3,
+  vec4,
+} from 'three/tsl';
 import type { Tweaks } from '../debug/tweaks';
-import { globalUniforms, srgbCached } from '../scene/globals';
-import { effectById, type EffectLayer } from '../state/effects';
-import { glslCommon } from './common';
+import { globalUniforms } from '../scene/globals';
+import type { EffectId, EffectLayer } from '../state/effects';
+import { bayer4, falloff, gradient3, hash12, luma, rot2, v3, type F, type V2, type V3, type V4 } from './common';
 
-export const SLOTS = 5; // ordered colour effects: halftone, dither, gradient, posterize, crt
+const amountUniform = () => uniform(0);
 
-export const postFragment = /* glsl */ `
-${glslCommon}
-uniform sampler2D tScene;
-uniform vec2 uRes;
-uniform vec2 uSceneRes;
-uniform float uTime;
-uniform float uDpr;
-uniform int uOrder[${SLOTS}];
-uniform float uAmount[${SLOTS}];
-uniform float uChroma;
-uniform float uKaleido;
-uniform float uGrain;
-uniform float uVignette;
-uniform float uGlitch;
-uniform float uRewind;
-uniform float uFlash;
-uniform float uMushroom;
-uniform float uCell;
-uniform float uAngle;
-uniform float uDitherLevels;
-uniform float uPosterLevels;
-uniform float uScan;
-uniform float uSpread;
-uniform vec3 uGradA;
-uniform vec3 uGradB;
-uniform vec3 uGradC;
-varying vec2 vUv;
-
-vec3 scene(vec2 uv) { return toSRGB(texture2D(tScene, clamp(uv, 0.001, 0.999)).rgb); }
-
-float dotScreen(vec2 px, float angle, float value) {
-  vec2 q = rot2(angle) * px / uCell;
-  vec2 f = fract(q) - 0.5;
-  float r = sqrt(clamp(value, 0.0, 1.0)) * 0.7;
-  return 1.0 - smoothstep(r - 0.08, r + 0.08, length(f));
+export function createPostUniforms() {
+  return {
+    sceneRes: uniform(new THREE.Vector2(1, 1)),
+    res: uniform(new THREE.Vector2(1, 1)),
+    dpr: uniform(1),
+    near: uniform(0.1),
+    far: uniform(700),
+    // outlines
+    outline: uniform(0.55),
+    crease: uniform(0.35),
+    outlineColor: uniform(new THREE.Color('#0b0a12')),
+    // stack amounts (by effect id) + params
+    amount: {
+      halftone: amountUniform(),
+      dither: amountUniform(),
+      gradient: amountUniform(),
+      posterize: amountUniform(),
+      chroma: amountUniform(),
+      crt: amountUniform(),
+      kaleido: amountUniform(),
+    } satisfies Record<EffectId, ReturnType<typeof amountUniform>>,
+    cell: uniform(5),
+    angle: uniform(0.4),
+    ditherLevels: uniform(6),
+    posterLevels: uniform(5),
+    scan: uniform(1),
+    spread: uniform(1),
+    gradA: uniform(new THREE.Color()),
+    gradB: uniform(new THREE.Color()),
+    gradC: uniform(new THREE.Color()),
+    grain: uniform(0.05),
+    vignette: uniform(0.3),
+    glitch: uniform(0),
+    rewind: uniform(0),
+    flash: uniform(0),
+    /** 0 → 1 dithers the frame out to the void (location changes). */
+    fade: uniform(0),
+  };
 }
+export type PostUniforms = ReturnType<typeof createPostUniforms>;
 
-void main() {
-  vec2 uv = vUv;
+const sceneSRGB = (c: V3) => (sRGBTransferOETF(vec4(c, 1)) as V4).rgb;
 
-  // Unfold glitch: torn rows.
-  if (uGlitch > 0.001) {
-    float rows = 18.0 + 30.0 * hash12(vec2(floor(uTime * 12.0), 3.0));
-    float row = floor(uv.y * rows);
-    float n = hash12(vec2(row, floor(uTime * 24.0)));
-    uv.x += (n - 0.5) * 0.18 * uGlitch * step(0.78, n);
-  }
-  // VHS rewind: wobble + tracking band.
-  if (uRewind > 0.001) {
-    uv.x += sin(uv.y * 48.0 + uTime * 40.0) * 0.003 * uRewind;
-    float band = smoothstep(0.0, 0.04, abs(fract(uv.y - uTime * 1.7) - 0.5) - 0.42);
-    uv.x += (1.0 - band) * 0.02 * uRewind;
-  }
-  // Mushroom: the pixels breathe.
-  if (uMushroom > 0.001) {
-    vec2 c = uv - 0.5;
-    float r = length(c);
-    uv += c * sin(uTime * 1.3 - r * 9.0) * 0.025 * uMushroom;
-    uv += vec2(sin(uv.y * 11.0 + uTime * 1.7), cos(uv.x * 9.0 - uTime * 1.2)) * 0.006 * uMushroom;
-  }
-  // Kaleidoscope (sampling-time).
-  if (uKaleido > 0.001) {
-    vec2 c = (uv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
-    float a = atan(c.y, c.x);
-    float r = length(c);
-    float seg = 3.14159265 / 3.0;
-    a = abs(mod(a + uTime * 0.05, seg * 2.0) - seg);
-    vec2 k = vec2(cos(a), sin(a)) * r / vec2(uRes.x / uRes.y, 1.0) + 0.5;
-    uv = mix(uv, k, uKaleido);
-  }
+export function createPost(renderer: THREE.WebGPURenderer, scene: THREE.Scene, camera: THREE.Camera) {
+  const P = createPostUniforms();
+  const U = globalUniforms;
+  const scenePass = pass(scene, camera, { magFilter: THREE.NearestFilter, minFilter: THREE.NearestFilter });
+  scenePass.setMRT(mrt({ output, normal: normalView.mul(0.5).add(0.5) }));
+  const colorTex = scenePass.getTextureNode('output');
+  const normalTex = scenePass.getTextureNode('normal');
+  const depthTex = scenePass.getTextureNode('depth');
 
-  // Chromatic split (sampling-time), stronger toward the edges.
-  vec2 off = (uv - 0.5) * 0.009 * uSpread * (uChroma + uMushroom * 0.6 + uRewind * 0.8);
-  vec3 col = vec3(scene(uv + off).r, scene(uv).g, scene(uv - off).b);
+  const pipeline = new THREE.RenderPipeline(renderer);
+  pipeline.outputColorTransform = false;
 
-  vec2 px = gl_FragCoord.xy / uDpr;
-  vec2 spx = floor(uv * uSceneRes);
-  for (int i = 0; i < ${SLOTS}; i++) {
-    int id = uOrder[i];
-    float a = uAmount[i];
-    if (a <= 0.0) continue;
-    if (id == 0) {
-      vec3 h = vec3(
-        dotScreen(px, uAngle, col.r),
-        dotScreen(px, uAngle + 0.52, col.g),
-        dotScreen(px, uAngle + 1.05, col.b)
-      );
-      col = mix(col, h * (0.6 + 0.4 * col) + col * 0.15, a);
-    } else if (id == 1) {
-      float L = uDitherLevels - 1.0;
-      vec3 d = floor(col * L + bayer4(spx)) / L;
-      col = mix(col, d, a);
-    } else if (id == 2) {
-      vec3 g = gradient3(clamp(luma(col), 0.0, 1.0), uGradA, uGradB, uGradC);
-      col = mix(col, g, a);
-    } else if (id == 3) {
-      vec3 p = floor(col * uPosterLevels + 0.5) / uPosterLevels;
-      col = mix(col, p, a);
-    } else if (id == 4) {
-      float line = 0.5 + 0.5 * sin(px.y * 3.14159 * uScan);
-      float mask = 0.5 + 0.5 * sin(px.x * 3.14159 * 0.66 + vec3(0.0, 2.1, 4.2).x);
-      col *= 1.0 - a * 0.3 * line;
-      col *= 1.0 - a * 0.08 * mask;
-      col += a * 0.04 * col * col;
+  const texel = vec2(1).div(P.sceneRes);
+  const viewZ = (uv: V2) => perspectiveDepthToViewZ(depthTex.sample(uv).r, P.near, P.far).negate();
+  const nrm = (uv: V2) => normalTex.sample(uv).rgb.mul(2).sub(1);
+
+  /** Scene colour (sRGB) with pixel-art outlines, at a snapped scene-pixel uv. */
+  const shaded = (uv: V2) => {
+    const c = sceneSRGB(colorTex.sample(uv).rgb).toVar();
+    const d0 = viewZ(uv);
+    const n0 = nrm(uv);
+    const offs = [vec2(1, 0), vec2(-1, 0), vec2(0, 1), vec2(0, -1)];
+    const depthEdge = float(0).toVar();
+    const creaseEdge = float(0).toVar();
+    for (const o of offs) {
+      const uvn = uv.add(o.mul(texel));
+      const dn = viewZ(uvn);
+      // silhouette: a neighbour noticeably further away
+      depthEdge.addAssign(dn.sub(d0).div(d0.max(0.5)).sub(0.035).max(0).mul(18).clamp(0, 1));
+      // crease: normals diverge while depth stays close, only on the lit side
+      const nn = nrm(uvn);
+      const nd = float(1).sub(dot(n0, nn)).clamp(0, 1);
+      const sameSurface = step(abs(dn.sub(d0)).div(d0.max(0.5)), 0.03);
+      const bias = step(0, dot(n0.sub(nn), vec3(-0.6, 0.8, 0.4)));
+      creaseEdge.addAssign(nd.mul(sameSurface).mul(bias));
     }
+    const de = depthEdge.min(1).mul(P.outline);
+    const ce = creaseEdge.smoothstep(0.08, 0.4).mul(P.crease).mul(float(1).sub(de));
+    const outlined = mix(c, mix(c.mul(0.35), v3(P.outlineColor), 0.35), de);
+    return outlined.add(outlined.mul(ce).mul(0.55)).add(vec3(ce.mul(0.04)));
+  };
+
+  const dotScreen = (px: V2, angle: F | number, value: F) => {
+    const q = rot2(angle).mul(px).div(P.cell);
+    const f = fract(q).sub(0.5);
+    const r = value.clamp(0, 1).sqrt().mul(0.7);
+    return falloff(f.length(), r.sub(0.08), r.add(0.08));
+  };
+
+  const effects: Record<Exclude<EffectId, 'chroma' | 'kaleido'>, (c: V3, px: V2, spx: V2) => V3> = {
+    halftone: (c, px) => {
+      const a = P.amount.halftone;
+      const h = vec3(dotScreen(px, P.angle, c.r), dotScreen(px, P.angle.add(0.52), c.g), dotScreen(px, P.angle.add(1.05), c.b));
+      return mix(c, h.mul(c.mul(0.4).add(0.6)).add(c.mul(0.15)), a);
+    },
+    dither: (c, _px, spx) => {
+      const L = P.ditherLevels.sub(1);
+      return mix(c, floor(c.mul(L).add(bayer4(spx))).div(L), P.amount.dither);
+    },
+    gradient: (c) => mix(c, gradient3(luma(c).clamp(0, 1), v3(P.gradA), v3(P.gradB), v3(P.gradC)), P.amount.gradient),
+    posterize: (c) => mix(c, floor(c.mul(P.posterLevels).add(0.5)).div(P.posterLevels), P.amount.posterize),
+    crt: (c, px) => {
+      const a = P.amount.crt;
+      const line = sin(px.y.mul(Math.PI).mul(P.scan)).mul(0.5).add(0.5);
+      const mask = sin(px.x.mul(Math.PI * 0.66)).mul(0.5).add(0.5);
+      const k = c.mul(float(1).sub(a.mul(0.3).mul(line))).mul(float(1).sub(a.mul(0.08).mul(mask)));
+      return k.add(k.mul(k).mul(a.mul(0.04)));
+    },
+  };
+
+  function build(stack: EffectLayer[]) {
+    const order = stack.filter((l) => l.enabled).map((l) => l.id);
+    pipeline.outputNode = Fn(() => {
+      const uv = screenUV.toVar();
+      const aspect = P.res.x.div(P.res.y);
+
+      // Unfold glitch: torn rows.
+      const rows = hash12(vec2(floor(U.uTime.mul(12)), 3)).mul(30).add(18);
+      const n = hash12(vec2(floor(uv.y.mul(rows)), floor(U.uTime.mul(24))));
+      uv.x.addAssign(n.sub(0.5).mul(0.18).mul(P.glitch).mul(step(0.78, n)));
+      // VHS rewind: wobble + tracking band.
+      uv.x.addAssign(sin(uv.y.mul(48).add(U.uTime.mul(40))).mul(0.003).mul(P.rewind));
+      const band = abs(fract(uv.y.sub(U.uTime.mul(1.7))).sub(0.5)).sub(0.42).smoothstep(0, 0.04);
+      uv.x.addAssign(band.oneMinus().mul(0.02).mul(P.rewind));
+      // Mushroom: the pixels breathe.
+      const c0 = uv.sub(0.5);
+      uv.addAssign(c0.mul(sin(U.uTime.mul(1.3).sub(c0.length().mul(9)))).mul(0.025).mul(U.uMushroom));
+      uv.addAssign(vec2(sin(uv.y.mul(11).add(U.uTime.mul(1.7))), cos(uv.x.mul(9).sub(U.uTime.mul(1.2)))).mul(0.006).mul(U.uMushroom));
+
+      if (order.includes('kaleido')) {
+        const c = uv.sub(0.5).mul(vec2(aspect, 1));
+        const seg = Math.PI / 3;
+        const a = abs(mod(atan(c.y, c.x).add(U.uTime.mul(0.05)), seg * 2).sub(seg));
+        const k = vec2(cos(a), sin(a)).mul(c.length()).div(vec2(aspect, 1)).add(0.5);
+        uv.assign(mix(uv, k, P.amount.kaleido));
+      }
+
+      // Snap to scene pixels, then chromatic split (sampling-time), stronger toward edges.
+      const snap = (q: V2) => floor(q.clamp(0.0005, 0.9995).mul(P.sceneRes)).add(0.5).div(P.sceneRes);
+      const chroma = P.amount.chroma.add(U.uMushroom.mul(0.6)).add(P.rewind.mul(0.8));
+      const off = uv.sub(0.5).mul(chroma.mul(0.009).mul(P.spread));
+      const base = shaded(snap(uv)).toVar();
+      const col = vec3(
+        mix(base.r, sceneSRGB(colorTex.sample(snap(uv.add(off))).rgb).r, step(0.0001, chroma)),
+        base.g,
+        mix(base.b, sceneSRGB(colorTex.sample(snap(uv.sub(off))).rgb).b, step(0.0001, chroma))
+      ).toVar();
+
+      const px = screenCoordinate.xy.div(P.dpr);
+      const spx = floor(uv.mul(P.sceneRes));
+      for (const id of order) {
+        if (id === 'chroma' || id === 'kaleido') continue;
+        col.assign(effects[id](col, px, spx));
+      }
+
+      const vig = uv.sub(0.5).mul(vec2(aspect, 1)).length().mul(1.15).smoothstep(0.35, 1.05);
+      col.mulAssign(float(1).sub(P.vignette.mul(vig)));
+      col.addAssign(hash12(screenCoordinate.xy.add(fract(U.uTime).mul(91.7))).sub(0.5).mul(P.grain));
+      col.assign(mix(col, vec3(1), P.flash));
+      col.assign(mix(col, vec3(luma(col)).mul(vec3(0.85, 0.95, 1.1)), P.rewind.mul(0.35)));
+      // Location change: ordered-dither the frame into the void.
+      const fadeMask = step(bayer4(spx), P.fade.mul(1.02));
+      col.assign(mix(col, vec3(0.035, 0.035, 0.043), fadeMask));
+      return vec4(col.clamp(0, 1), 1);
+    })();
+    pipeline.needsUpdate = true;
   }
 
-  float vig = smoothstep(0.35, 1.05, length((vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0)) * 1.15);
-  col *= 1.0 - uVignette * vig;
-  col += (hash12(gl_FragCoord.xy + fract(uTime) * 91.7) - 0.5) * uGrain;
-  col = mix(col, vec3(1.0), uFlash);
-  if (uRewind > 0.001) col = mix(col, vec3(luma(col)) * vec3(0.85, 0.95, 1.1), uRewind * 0.35);
-  gl_FragColor = vec4(col, 1.0);
-}
-`;
-
-export const postVertex = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
-}
-`;
-
-export function createPostMaterial(scene: THREE.Texture) {
-  return new THREE.ShaderMaterial({
-    vertexShader: postVertex,
-    fragmentShader: postFragment,
-    depthTest: false,
-    depthWrite: false,
-    uniforms: {
-      tScene: { value: scene },
-      uRes: { value: new THREE.Vector2(1, 1) },
-      uSceneRes: { value: new THREE.Vector2(1, 1) },
-      uTime: globalUniforms.uTime,
-      uDpr: { value: 1 },
-      uOrder: { value: [0, 1, 2, 3, 4] },
-      uAmount: { value: [0, 0, 0, 0, 0] },
-      uChroma: { value: 0 },
-      uKaleido: { value: 0 },
-      uGrain: { value: 0.05 },
-      uVignette: { value: 0.3 },
-      uGlitch: { value: 0 },
-      uRewind: { value: 0 },
-      uFlash: { value: 0 },
-      uMushroom: globalUniforms.uMushroom,
-      uCell: { value: 5 },
-      uAngle: { value: 0.4 },
-      uDitherLevels: { value: 6 },
-      uPosterLevels: { value: 5 },
-      uScan: { value: 1 },
-      uSpread: { value: 1 },
-      uGradA: { value: new THREE.Vector3() },
-      uGradB: { value: new THREE.Vector3() },
-      uGradC: { value: new THREE.Vector3() },
+  return {
+    pipeline,
+    scenePass,
+    uniforms: P,
+    build,
+    /** Fraction of the drawing buffer the scene renders at. */
+    setPixelScale(scale: number) {
+      scenePass.setResolutionScale(scale);
     },
-  });
+    updateSizes(width: number, height: number, dpr: number, scale: number) {
+      P.res.value.set(width * dpr, height * dpr);
+      P.sceneRes.value.set(Math.max(1, Math.floor(width * dpr * scale)), Math.max(1, Math.floor(height * dpr * scale)));
+      P.dpr.value = dpr;
+    },
+  };
 }
+export type Post = ReturnType<typeof createPost>;
 
-/** Scene render target: low-res, nearest-filtered, sRGB-encoded (hardware-decoded on read). */
-export function createSceneTarget() {
-  const rt = new THREE.WebGLRenderTarget(4, 4, {
-    minFilter: THREE.NearestFilter,
-    magFilter: THREE.NearestFilter,
-    depthBuffer: true,
-    colorSpace: THREE.SRGBColorSpace,
-  });
-  rt.texture.generateMipmaps = false;
-  return rt;
-}
-
-export function createPostPass(scene: THREE.Texture) {
-  const material = createPostMaterial(scene);
-  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
-  quad.frustumCulled = false;
-  const s = new THREE.Scene();
-  s.add(quad);
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  return { material, scene: s, camera };
-}
-
-/** Write the visitor's ordered effect stack + tweak params into the post uniforms. */
+/** Write the visitor's effect amounts + tweak params into the post uniforms. */
 export function writeStackUniforms(
-  material: THREE.ShaderMaterial,
+  P: PostUniforms,
   effects: EffectLayer[],
   worldness: number,
   stack: Tweaks['Modyfi stack'],
   palette?: [string, string, string] | null
 ) {
-  const u = material.uniforms;
-  const order: number[] = [];
-  const amount: number[] = [];
-  let chroma = 0;
-  let kaleido = 0;
-  for (const layer of effects) {
-    const value = layer.enabled ? layer.amount * worldness : 0;
-    if (layer.id === 'chroma') chroma = value;
-    else if (layer.id === 'kaleido') kaleido = value;
-    else {
-      const code = effectById.get(layer.id)!.code;
-      // shader slots: halftone 0, dither 1, gradient 2, posterize 3, crt 4
-      order.push(code === 5 ? 4 : code);
-      amount.push(value);
-    }
-  }
-  for (let i = 0; i < SLOTS; i++) {
-    (u.uOrder.value as number[])[i] = order[i] ?? 0;
-    (u.uAmount.value as number[])[i] = amount[i] ?? 0;
-  }
-  u.uChroma.value = chroma;
-  u.uKaleido.value = kaleido;
-  u.uGrain.value = stack.grain * (0.4 + 0.6 * worldness);
-  u.uVignette.value = stack.vignette * worldness;
-  u.uCell.value = stack.halftone.cell;
-  u.uAngle.value = stack.halftone.angle;
-  u.uDitherLevels.value = stack.dither.levels;
-  u.uPosterLevels.value = stack.posterize.levels;
-  u.uScan.value = stack.scanlines.density;
-  u.uSpread.value = stack.chroma.spread;
+  for (const layer of effects) P.amount[layer.id].value = layer.enabled ? layer.amount * worldness : 0;
+  P.grain.value = stack.grain * (0.4 + 0.6 * worldness);
+  P.vignette.value = stack.vignette * worldness;
+  P.cell.value = stack.halftone.cell;
+  P.angle.value = stack.halftone.angle;
+  P.ditherLevels.value = stack.dither.levels;
+  P.posterLevels.value = stack.posterize.levels;
+  P.scan.value = stack.scanlines.density;
+  P.spread.value = stack.chroma.spread;
   const [dark, mid, light] = palette ?? [stack.gradientMap.dark, stack.gradientMap.mid, stack.gradientMap.light];
-  (u.uGradA.value as THREE.Vector3).copy(srgbCached(dark));
-  (u.uGradB.value as THREE.Vector3).copy(srgbCached(mid));
-  (u.uGradC.value as THREE.Vector3).copy(srgbCached(light));
+  // The gradient map works on sRGB values, so store sRGB triples.
+  P.gradA.value.set(dark).convertLinearToSRGB();
+  P.gradB.value.set(mid).convertLinearToSRGB();
+  P.gradC.value.set(light).convertLinearToSRGB();
 }
+
+/** Stable key for the parts of the stack that change the node graph. */
+export const stackKey = (effects: EffectLayer[]) =>
+  effects
+    .filter((l) => l.enabled)
+    .map((l) => l.id)
+    .join(',');
+

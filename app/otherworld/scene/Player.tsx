@@ -14,12 +14,12 @@ import { zones } from '@/content/zones';
 import { tweaks } from '../debug/tweaks';
 import { clamp, damp, dampAngle } from '../lib/random';
 import { emit, sfx } from '../state/events';
-import { registerInteractable, runtime, sayOverhead } from '../state/runtime';
+import { houseUniforms } from '../house/materials';
+import { place, registerInteractable, runtime, sayOverhead } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
 import { findPath, type TilePos } from '../world/pathfinding';
-import { getWorld, heightAt, tileCenter, worldToTile, zoneAt } from '../world/map';
 import { revealScale } from './globals';
-import { TileChannel, setShadow, tileState } from './Terrain';
+import { TileChannel, setShadow } from './Terrain';
 
 // Classic pointer silhouette (x right, y down), 11.5 × 19 units.
 const ARROW: [number, number][] = [
@@ -83,8 +83,13 @@ const easeOutBounce = (x: number) => {
   return n1 * (x -= 2.625 / d1) * x + 0.984375;
 };
 
+/** Has the ground under the player appeared yet (island reveal wave / house build)? */
+function groundReady(x: number, z: number) {
+  if (runtime.location === 'island') return revealScale(x, z);
+  return houseUniforms.built.value >= 0.98 ? 1 : 0;
+}
+
 export function Player() {
-  const world = getWorld();
   const root = useRef<THREE.Group>(null);
   const bodyGroup = useRef<THREE.Group>(null);
   const bodyMat = useRef<THREE.MeshLambertMaterial>(null);
@@ -120,13 +125,15 @@ export function Player() {
 
   // spawn
   useEffect(() => {
-    const [sx, sz] = tileCenter(world.spawn[0], world.spawn[1]);
-    runtime.player.pos.set(sx, heightAt(world, sx, sz), sz);
-    runtime.player.tile = [...world.spawn] as TilePos;
+    const P = place();
+    const spawn = P.spawn;
+    const [sx, sz] = P.tileCenter(spawn[0], spawn[1]);
+    runtime.player.pos.set(sx, P.heightAt(sx, sz), sz);
+    runtime.player.tile = spawn;
     runtime.player.yaw = Math.PI;
     sim.current.from.copy(runtime.player.pos);
     sim.current.to.copy(runtime.player.pos);
-  }, [world]);
+  }, []);
 
   // destination requests from the store
   useEffect(() => {
@@ -135,6 +142,23 @@ export function Player() {
       if (!d || d.seq === sim.current.destSeq) return;
       sim.current.destSeq = d.seq;
       const s = sim.current;
+      const P = place();
+      if (d.instant) {
+        // portal arrival: just be there
+        s.path = [];
+        s.teleport = null;
+        const [x, z] = P.tileCenter(d.tile[0], d.tile[1]);
+        runtime.player.pos.set(x, P.heightAt(x, z), z);
+        runtime.player.tile = [...d.tile] as TilePos;
+        s.from.copy(runtime.player.pos);
+        s.to.copy(runtime.player.pos);
+        s.stepT = 1;
+        s.lastZone = null;
+        P.tiles.clear(TileChannel.Destination);
+        P.tiles.clear(TileChannel.Path);
+        d.onArrive?.();
+        return;
+      }
       if (d.teleport) {
         s.path = [];
         s.teleport = { t: 0, to: d.tile, onArrive: d.onArrive, moved: false };
@@ -144,10 +168,10 @@ export function Player() {
         return;
       }
       // Start pathing from the tile we're stepping into, so we never snap back.
-      const startTile = s.stepT < 1 ? worldToTile(s.to.x, s.to.z) : runtime.player.tile;
-      const path = findPath(world, startTile, d.tile);
-      tileState.clear(TileChannel.Destination);
-      tileState.clear(TileChannel.Path);
+      const startTile = s.stepT < 1 ? P.worldToTile(s.to.x, s.to.z) : runtime.player.tile;
+      const path = findPath(P, startTile, d.tile);
+      P.tiles.clear(TileChannel.Destination);
+      P.tiles.clear(TileChannel.Path);
       if (!path.length) {
         // Already there, or as close as we can get (e.g. next to a blocked target).
         s.path = [];
@@ -164,12 +188,12 @@ export function Player() {
       const last = path[path.length - 1] ?? startTile;
       const p = gameState().plugins;
       if (p.destinationTile) {
-        tileState.set(last[0], last[1], TileChannel.Destination, true);
-        for (const [i, j] of path.slice(0, -1)) tileState.set(i, j, TileChannel.Path, true);
+        P.tiles.set(last[0], last[1], TileChannel.Destination, true);
+        for (const [i, j] of path.slice(0, -1)) P.tiles.set(i, j, TileChannel.Path, true);
       }
     });
     return unsub;
-  }, [world]);
+  }, []);
 
   // self as an interactable
   useEffect(
@@ -197,8 +221,9 @@ export function Player() {
   );
 
   const finishStep = (s: typeof sim.current) => {
-    runtime.player.tile = worldToTile(s.to.x, s.to.z);
-    tileState.set(runtime.player.tile[0], runtime.player.tile[1], TileChannel.Path, false);
+    const P = place();
+    runtime.player.tile = P.worldToTile(s.to.x, s.to.z);
+    P.tiles.set(runtime.player.tile[0], runtime.player.tile[1], TileChannel.Path, false);
     s.tilesWalked++;
     sfx('step', 0.9 + Math.random() * 0.2);
     if (s.tilesWalked % 30 === 0) gameState().addXp('wandering', 30);
@@ -206,19 +231,19 @@ export function Player() {
     const g = gameState();
     if (g.running) g.setCaffeine(g.caffeine - 0.9 * tweaks().Player.caffeineDrain);
 
-    const zone = zoneAt(world, s.to.x, s.to.z);
+    const zone = P.area(s.to.x, s.to.z);
     const zid = zone?.id ?? null;
     if (zid !== s.lastZone) {
       s.lastZone = zid;
       g.setZone(zid);
       if (zone && !s.seenZones.has(zone.id)) {
         s.seenZones.add(zone.id);
-        g.say(`${zone.name}: ${zone.arrival}`, 'game');
+        if (zone.arrival) g.say(`${zone.name}: ${zone.arrival}`, 'game');
         for (const w of works) if (w.zone === zone.id) g.markQuest(w.slug, 'seen');
       }
     }
     // Fairy ring: standing in the middle is a choice.
-    const ringZone = zones.find((z) => z.id === 'ring');
+    const ringZone = runtime.location === 'island' ? zones.find((z) => z.id === 'ring') : undefined;
     if (ringZone && performance.now() > s.ringCooldown) {
       const d = Math.hypot(s.to.x - ringZone.center[0], s.to.z - (ringZone.center[1] + 0.6));
       if (d < 1.1) {
@@ -248,8 +273,8 @@ export function Player() {
       else {
         if (!s.teleport.moved) {
           s.teleport.moved = true;
-          const [x, z] = tileCenter(s.teleport.to[0], s.teleport.to[1]);
-          P.pos.set(x, heightAt(world, x, z), z);
+          const [x, z] = place().tileCenter(s.teleport.to[0], s.teleport.to[1]);
+          P.pos.set(x, place().heightAt(x, z), z);
           s.from.copy(P.pos);
           s.to.copy(P.pos);
           s.stepT = 1;
@@ -274,9 +299,9 @@ export function Player() {
     s.stepDur = tickSeconds / Math.max(0.1, tilesPerTick);
     if (s.stepT >= 1 && s.path.length && !s.teleport) {
       const next = s.path.shift()!;
-      const [x, z] = tileCenter(next[0], next[1]);
+      const [x, z] = place().tileCenter(next[0], next[1]);
       s.from.copy(P.pos);
-      s.to.set(x, heightAt(world, x, z), z);
+      s.to.set(x, place().heightAt(x, z), z);
       s.stepT = 0;
     }
     let moving = false;
@@ -285,15 +310,15 @@ export function Player() {
       s.stepT = Math.min(1, s.stepT + dt / s.stepDur);
       const k = t.Player.snapToTicks ? Math.round(s.stepT * 2) / 2 : s.stepT;
       P.pos.lerpVectors(s.from, s.to, k);
-      P.pos.y = heightAt(world, P.pos.x, P.pos.z);
+      P.pos.y = place().heightAt(P.pos.x, P.pos.z);
       const dx = s.to.x - s.from.x;
       const dz = s.to.z - s.from.z;
       if (Math.abs(dx) + Math.abs(dz) > 1e-4) P.yaw = dampAngle(P.yaw, Math.atan2(dx, dz), 14, dt);
       if (s.stepT >= 1) {
         finishStep(s);
         if (!s.path.length) {
-          tileState.clear(TileChannel.Destination);
-          tileState.clear(TileChannel.Path);
+          place().tiles.clear(TileChannel.Destination);
+          place().tiles.clear(TileChannel.Path);
           const cb = s.onArrive;
           s.onArrive = undefined;
           cb?.();
@@ -306,7 +331,7 @@ export function Player() {
     // ── idle: look at the pointer, blink, eventually sit ────────────────────
     P.idle = moving ? 0 : P.idle + dt;
     s.sit = damp(s.sit, P.idle > 40 ? 1 : 0, 3, dt);
-    if (P.idle > 40 && P.idle - dt <= 40) g.say('You sit down on the canvas for a moment.');
+    if (P.idle > 40 && P.idle - dt <= 40) g.say(runtime.location === 'house' ? 'You sit down on the floor for a moment. Nice floor.' : 'You sit down on the canvas for a moment.');
     if (!moving && runtime.lookActive > 0 && !s.emote) {
       const lx = runtime.lookTarget.x - P.pos.x;
       const lz = runtime.lookTarget.z - P.pos.z;
@@ -314,7 +339,7 @@ export function Player() {
     }
 
     // ── intro drop ─────────────────────────────────────────────────────────
-    const reveal = revealScale(P.pos.x, P.pos.z);
+    const reveal = groundReady(P.pos.x, P.pos.z);
     if (reveal === 0) {
       s.dropT = 0;
       P.landed = false;
@@ -451,7 +476,7 @@ export function Player() {
     <>
       <group ref={root} name="player">
         <group ref={bodyGroup}>
-          <mesh geometry={cursorGeo} castShadow={false}>
+          <mesh geometry={cursorGeo} castShadow>
             <meshLambertMaterial ref={bodyMat} color="#09090b" flatShading />
           </mesh>
           <mesh geometry={cursorGeo} scale={[1.09, 1.07, 1.35]} position={[-0.012, -0.03, 0]}>

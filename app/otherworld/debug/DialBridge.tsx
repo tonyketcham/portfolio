@@ -11,7 +11,7 @@
 import { DialRoot, useDialKitController } from 'dialkit';
 import 'dialkit/styles.css';
 import { useEffect, useRef } from 'react';
-import { runDebugAction } from '../state/actions';
+import { dialQueue, runDebugAction } from '../state/actions';
 import { on } from '../state/events';
 import { gameState } from '../state/store';
 import { PANELS, useTweaks, type Tweaks } from './tweaks';
@@ -22,6 +22,8 @@ const openers = new Map<PanelName, (open: boolean) => void>();
 
 function usePanel<P extends PanelName>(name: P, collapsed = true) {
   const controller = useDialKitController(name, PANELS[name] as never, {
+    // A stable id keeps persisted values across hide/show (otherwise DialKit keys by useId()).
+    id: name,
     persist: true,
     defaultCollapsed: collapsed,
     onAction: (path: string) => runDebugAction(name, path),
@@ -49,25 +51,32 @@ function Panels() {
   usePanel('Artboards');
   usePanel('Flora');
   usePanel('HUD');
+  usePanel('House');
   usePanel('Intro');
   usePanel('Debug');
 
-  useEffect(
-    () =>
-      on((e) => {
-        if (e.type !== 'dial-target') return;
-        const target = (Object.keys(PANELS) as PanelName[]).find(
-          (p) => p.toLowerCase() === e.panel.toLowerCase() || p.toLowerCase().startsWith(e.panel.toLowerCase())
-        );
-        if (!target) {
-          gameState().say(`No DialKit panel called "${e.panel}". Try: ${Object.keys(PANELS).join(', ')}`, 'system');
-          return;
-        }
-        for (const [name, setOpen] of openers) setOpen(name === target);
-        gameState().say(`DialKit → ${target}`, 'system');
-      }),
-    []
-  );
+  useEffect(() => {
+    const target = (panel: string) => {
+      const name = (Object.keys(PANELS) as PanelName[]).find(
+        (p) => p.toLowerCase() === panel.toLowerCase() || p.toLowerCase().startsWith(panel.toLowerCase())
+      );
+      if (!name) {
+        gameState().say(`No DialKit panel called "${panel}". Try: ${Object.keys(PANELS).join(', ')}`, 'system');
+        return;
+      }
+      for (const [n, setOpen] of openers) setOpen(n === name);
+      gameState().say(`DialKit → ${name}`, 'system');
+    };
+    // a ::target that arrived before this lazily-loaded panel mounted
+    if (dialQueue.panel) {
+      const queued = dialQueue.panel;
+      dialQueue.panel = null;
+      window.setTimeout(() => target(queued), 0);
+    }
+    return on((e) => {
+      if (e.type === 'dial-target') target(e.panel);
+    });
+  }, []);
   return null;
 }
 

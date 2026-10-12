@@ -1,30 +1,43 @@
 'use client';
 
 /**
- * The camera rig (old-school orbit around the player) and the intro director
- * that turns a flat design-tool artboard into the island.
+ * The camera rig (old-school orbit around the player), the intro director
+ * that turns the house blueprint into a built house, and the travel director
+ * that carries you between the house and the island.
  */
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { tweaks } from '../debug/tweaks';
-import { HERO_CENTER, HERO_SIZE } from '../lib/hero';
+import { houseUniforms } from '../house/materials';
 import { clamp, damp, dampAngle, lerp } from '../lib/random';
 import { travelToWork } from '../state/actions';
 import { emit, on, sfx } from '../state/events';
 import { runtime } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
+import { getHouse, PLACES, type PlaceId } from '../world/places';
+import type { TilePos } from '../world/pathfinding';
 import { globalUniforms } from './globals';
+import { postState } from './PostStack';
 
-
-const ARTBOARD_PITCH = 1.535;
+const BLUEPRINT_PITCH = 1.53;
 const WORLD_PITCH = 0.8;
 const WORLD_YAW = 0.5;
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 function worldDistance(aspect: number) {
-  return aspect < 0.8 ? 23 : 15;
+  return aspect < 0.8 ? 21 : 15;
+}
+
+/** Centre + size of the house plan, for framing the blueprint. */
+function plan() {
+  const L = getHouse().layout;
+  return {
+    centre: new THREE.Vector3(L.ox + L.width / 2, 0, L.oz + L.height / 2),
+    w: L.width,
+    h: L.height,
+  };
 }
 
 const tmpTarget = new THREE.Vector3();
@@ -33,7 +46,7 @@ const playerTarget = new THREE.Vector3();
 
 export function CameraRig() {
   const { camera, size } = useThree();
-  const cur = useRef({ yaw: 0, pitch: ARTBOARD_PITCH, distance: 9, target: HERO_CENTER.clone(), ready: false });
+  const cur = useRef({ yaw: 0, pitch: BLUEPRINT_PITCH, distance: 40, target: new THREE.Vector3(), ready: false });
 
   useEffect(() => {
     runtime.camera = camera as THREE.PerspectiveCamera;
@@ -55,7 +68,7 @@ export function CameraRig() {
     []
   );
 
-  useFrame((state, rawDt) => {
+  useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const t = tweaks();
     const g = gameState();
@@ -67,10 +80,9 @@ export function CameraRig() {
     }
     const aspect = size.width / Math.max(1, size.height);
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(persp.fov) / 2);
-    runtime.intro.baseDistance = Math.max(
-      (HERO_SIZE.h * 1.3) / (2 * tanHalf),
-      (HERO_SIZE.w * 1.12) / (2 * tanHalf * aspect)
-    );
+    const P = plan();
+    // the whole plan fits, with room for the editor chrome
+    runtime.intro.baseDistance = Math.max((P.h * 1.25) / (2 * tanHalf), (P.w * 1.25) / (2 * tanHalf * aspect));
 
     playerTarget.copy(runtime.player.pos).y += 0.7;
     let yaw: number;
@@ -82,17 +94,17 @@ export function CameraRig() {
     if (g.stage === 'boot' || g.stage === 'artboard') {
       const base = runtime.intro.baseDistance;
       cam.distance = clamp(cam.distance, base * 0.45, base * 3.2);
-      target.copy(HERO_CENTER);
+      target.copy(P.centre);
       yaw = 0;
-      pitch = ARTBOARD_PITCH;
+      pitch = BLUEPRINT_PITCH;
       distance = cam.distance;
       lambda = 9;
     } else if (g.stage === 'unfolding') {
       const e = easeInOut(runtime.intro.unfold);
-      target.lerpVectors(HERO_CENTER, playerTarget, e);
+      target.lerpVectors(P.centre, playerTarget, e);
       yaw = lerp(0, cam.yaw, e);
-      pitch = lerp(ARTBOARD_PITCH, cam.pitch, e);
-      distance = lerp(runtime.intro.baseDistance * 2, cam.distance, e);
+      pitch = lerp(BLUEPRINT_PITCH, cam.pitch, e);
+      distance = lerp(runtime.intro.baseDistance * 1.1, cam.distance, e);
       lambda = 12;
     } else if (cam.focus) {
       target.copy(cam.focus.target);
@@ -110,7 +122,8 @@ export function CameraRig() {
     }
 
     const c = cur.current;
-    if (!c.ready) {
+    if (!c.ready || runtime.cam.snap) {
+      runtime.cam.snap = false;
       c.yaw = yaw;
       c.pitch = pitch;
       c.distance = distance;
@@ -135,13 +148,12 @@ export function CameraRig() {
     }
     camera.position.copy(tmpPos);
     camera.lookAt(c.target);
-    void state;
   });
 
   return null;
 }
 
-/** Drives boot → artboard → unfolding → world. */
+/** Drives boot → blueprint ('artboard') → unfolding (the house builds) → world. */
 export function IntroDirector() {
   const stage = useGame((s) => s.stage);
   const { size } = useThree();
@@ -154,20 +166,21 @@ export function IntroDirector() {
   useEffect(() => {
     if (stage !== 'boot') return;
     const g = gameState();
-    const reduce =
-      typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const forceIntro = params?.has('intro');
     const skip = !forceIntro && (g.introSeen || tweaks().Intro.skip || reduce || params?.has('skip') || params?.has('work'));
     const started = performance.now();
+    // Every visit starts at home.
+    runtime.location = 'house';
+    g.setLocation('house');
     const id = window.setInterval(() => {
       // Wait for physics (wasm) and a beat for the boot screen to read.
       if (!runtime.physicsReady || performance.now() - started < 700) return;
       window.clearInterval(id);
-      if (skip) {
-        enterWorld(true);
-      } else {
-        globalUniforms.uReveal.value = 0;
+      if (skip) enterWorld(true);
+      else {
+        houseUniforms.built.value = 0;
         runtime.cam.distance = runtime.intro.baseDistance;
         g.setStage('artboard');
       }
@@ -177,11 +190,16 @@ export function IntroDirector() {
 
   useEffect(() => {
     if (stage === 'artboard') {
-      globalUniforms.uReveal.value = 0;
+      houseUniforms.built.value = 0;
       runtime.intro.unfold = 0;
       runtime.cam.distance = runtime.intro.baseDistance;
       timer.current = 0;
       runtime.cam.focus = null;
+      runtime.location = 'house';
+      gameState().setLocation('house');
+      gameState().setBuildMode(false);
+      const P = PLACES.house;
+      gameState().appearAt(P.spawn);
     }
     if (stage === 'unfolding') {
       timer.current = 0;
@@ -205,41 +223,113 @@ export function IntroDirector() {
       const u = Math.min(1, timer.current / t.Intro.unfoldSeconds);
       runtime.intro.unfold = u;
       globalUniforms.uUnfold.value = u;
-      globalUniforms.uReveal.value = easeInOut(Math.min(1, u * 1.15)) * 82;
-      if (u > 0.12 && u - dt / t.Intro.unfoldSeconds <= 0.12) emit({ type: 'shake', amount: 0.6 });
+      houseUniforms.built.value = easeInOut(Math.min(1, u * 1.1));
+      if (u > 0.1 && u - dt / t.Intro.unfoldSeconds <= 0.1) emit({ type: 'shake', amount: 0.5 });
       if (u >= 1) enterWorld(false);
     }
   });
 
   function enterWorld(skipped: boolean) {
     const g = gameState();
-    globalUniforms.uReveal.value = 100;
+    houseUniforms.built.value = 1;
     globalUniforms.uUnfold.value = 1;
     runtime.intro.unfold = 1;
+    runtime.location = 'house';
+    g.setLocation('house');
     if (skipped) {
       runtime.cam.yaw = WORLD_YAW;
       runtime.cam.pitch = WORLD_PITCH;
       runtime.cam.distance = worldDistance(aspect());
+      runtime.cam.snap = true;
+      g.appearAt(PLACES.house.spawn);
     }
     const first = !g.introSeen;
     g.setStage('world');
     if (first) {
-      g.say('Welcome to Untitled-1.', 'fx');
+      g.say('Welcome to Untitled-1. This is your house.', 'fx');
       g.say(
         runtime.pointer.isTouch
-          ? 'Tap to walk. Long-press anything for options. Drag to look around.'
-          : 'Click to walk. Right-click anything for options. Drag to look around.',
+          ? 'Tap to walk. Long-press anything for options. Drag to look around. The exit portal leads to the island.'
+          : 'Click to walk. Right-click anything for options. Drag to look around. The exit portal leads to the island.',
         'system'
       );
       window.setTimeout(() => {
-        if (gameState().addItem({ id: 'pixel' })) gameState().say('A loose pixel falls off the artboard and into your pocket.');
+        if (gameState().addItem({ id: 'pixel' })) gameState().say('A loose pixel falls off the blueprint and into your pocket.');
       }, 1800);
     } else {
-      g.say('Welcome back to Untitled-1.', 'fx');
+      g.say('Welcome home.', 'fx');
     }
     const deepLink = new URLSearchParams(window.location.search).get('work');
     if (deepLink) window.setTimeout(() => travelToWork(deepLink), 1100);
   }
+
+  return null;
+}
+
+/**
+ * Portal trips between the house and the island: dither the frame out to the
+ * canvas, show the loading box, swap places, dither back in. The first time
+ * you step onto the island it unfolds around you.
+ */
+export function TravelDirector() {
+  const trip = useRef<null | { to: PlaceId; tile?: TilePos; onArrive?: () => void; t: number; swapped: boolean }>(null);
+
+  useEffect(
+    () =>
+      on((e) => {
+        if (e.type !== 'travel' || trip.current) return;
+        trip.current = { to: e.to, tile: e.tile, onArrive: e.onArrive, t: 0, swapped: false };
+        gameState().closeMenu();
+        gameState().inspect(null);
+      }),
+    []
+  );
+
+  useFrame((_, rawDt) => {
+    const tr = trip.current;
+    if (!tr) return;
+    const dt = Math.min(rawDt, 0.05);
+    tr.t += dt;
+    const OUT = 0.45;
+    const HOLD = 0.5;
+    const IN = 0.55;
+    if (tr.t < OUT) {
+      postState.fade = tr.t / OUT;
+      return;
+    }
+    const g = gameState();
+    if (!tr.swapped) {
+      tr.swapped = true;
+      postState.fade = 1;
+      g.setLoading('Loading - please wait.');
+      if (tr.to === 'island') g.setBuildMode(false);
+      runtime.location = tr.to;
+      g.setLocation(tr.to);
+      const place = PLACES[tr.to];
+      if (tr.to === 'island' && !g.islandVisited) {
+        globalUniforms.uReveal.value = 0;
+        g.setIslandVisited();
+      }
+      runtime.cam.focus = null;
+      runtime.cam.snap = true;
+      g.appearAt(tr.tile ?? place.spawn);
+      return;
+    }
+    if (tr.t < OUT + HOLD) return;
+    if (gameState().loading) g.setLoading(null);
+    const u = Math.min(1, (tr.t - OUT - HOLD) / IN);
+    postState.fade = 1 - u;
+    // the island unfolds the first time you arrive
+    if (tr.to === 'island' && globalUniforms.uReveal.value < 100) globalUniforms.uReveal.value = Math.min(100, globalUniforms.uReveal.value + dt * 34);
+    if (u >= 1 && (tr.to !== 'island' || globalUniforms.uReveal.value >= 100)) {
+      postState.fade = 0;
+      const cb = tr.onArrive;
+      trip.current = null;
+      g.say(tr.to === 'island' ? 'You step out onto the island.' : 'You are home.', 'game');
+      sfx('paste');
+      cb?.();
+    }
+  });
 
   return null;
 }

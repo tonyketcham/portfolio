@@ -41,5 +41,5 @@ export function Cables() {
     if (dirty) hiTexture.needsUpdate = true;
   });
 
-  return <mesh geometry={geometry} material={material} frustumCulled={false} name="cables" />;
+  return <mesh geometry={geometry} material={material} frustumCulled={false} receiveShadow name="cables" />;
 }

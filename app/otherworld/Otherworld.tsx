@@ -8,22 +8,42 @@ import type { CSSProperties } from 'react';
  */
 import { Canvas } from '@react-three/fiber';
 import dynamic from 'next/dynamic';
-import { Suspense, useEffect, useState } from 'react';
-import * as THREE from 'three';
+import { Component, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { installSfx } from './audio/sfx';
+import { backendName, createRenderer, hasWebGPU, supportsWebGL2 } from './lib/gpu';
 import { useTweaks } from './debug/tweaks';
 import { Hud } from './hud/Hud';
 import { Scene } from './scene/Scene';
+import { runtime } from './state/runtime';
 import { useGame } from './state/store';
 
 const DialBridge = dynamic(() => import('./debug/DialBridge'), { ssr: false });
 
-function supportsWebGL2() {
-  try {
-    const c = document.createElement('canvas');
-    return !!c.getContext('webgl2');
-  } catch {
-    return false;
+function NoCanvas({ reason }: { reason: string }) {
+  return (
+    <div className="ow-root ow-nogl" data-skin="tool">
+      <div className="ow-panel ow-nogl-card">
+        <p className="ow-title">Untitled-1 couldn’t open</p>
+        <p>{reason}</p>
+        <a className="ow-btn" href="/classic">
+          Open the classic portfolio →
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/** If the canvas or the HUD throws, fall back to the classic page instead of a blank screen. */
+class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error('[otherworld] crashed', error);
+  }
+  render() {
+    return this.state.failed ? <NoCanvas reason="Something in the world broke. The classic portfolio still works." /> : this.props.children;
   }
 }
 
@@ -37,7 +57,7 @@ export default function Otherworld() {
   const stage = useGame((s) => s.stage);
 
   useEffect(() => {
-    setWebgl(supportsWebGL2());
+    setWebgl(hasWebGPU() || supportsWebGL2());
     let done = false;
     const finish = () => {
       if (!done) {
@@ -56,21 +76,10 @@ export default function Otherworld() {
     };
   }, []);
 
-  if (webgl === false) {
-    return (
-      <div className="ow-root ow-nogl" data-skin="tool">
-        <div className="ow-panel ow-nogl-card">
-          <p className="ow-title">Untitled-1 couldn’t open</p>
-          <p>This browser doesn’t support WebGL2, so the canvas can’t unfold here.</p>
-          <a className="ow-btn" href="/classic">
-            Open the classic portfolio →
-          </a>
-        </div>
-      </div>
-    );
-  }
+  if (webgl === false) return <NoCanvas reason="This browser supports neither WebGPU nor WebGL2, so the canvas can’t unfold here." />;
 
   return (
+    <RootBoundary>
     <div
       className="ow-root"
       data-skin={stage === 'world' ? skin : 'tool'}
@@ -82,11 +91,13 @@ export default function Otherworld() {
           className="ow-canvas"
           dpr={[1, 1.75]}
           flat
-          gl={{ antialias: false, powerPreference: 'high-performance', alpha: false, stencil: false }}
-          camera={{ fov: 38, near: 0.1, far: 700, position: [0, 30, 10] }}
-          onCreated={({ gl }) => {
-            gl.outputColorSpace = THREE.SRGBColorSpace;
+          shadows="percentage"
+          gl={async ({ canvas }) => {
+            const renderer = await createRenderer(canvas);
+            runtime.backend = backendName(renderer);
+            return renderer as never;
           }}
+          camera={{ fov: 38, near: 0.1, far: 700, position: [0, 30, 10] }}
         >
           <Suspense fallback={null}>
             <Scene />
@@ -96,5 +107,6 @@ export default function Otherworld() {
       <Hud />
       {dialOpen && <DialBridge />}
     </div>
+    </RootBoundary>
   );
 }

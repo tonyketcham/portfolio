@@ -6,19 +6,23 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { zoneById } from '@/content/zones';
-import { replayIntro } from '../state/actions';
+import { HOUSE_STYLES } from '../house/styles';
+import { replayIntro, toggleBuildMode } from '../state/actions';
 import { emit, sfx } from '../state/events';
 import { runtime } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
-import { SelectionOverlay } from './Overlays';
+import { getHouse } from '../world/places';
+import { RoomLabels } from './HouseHud';
+import { TabIcon } from './icons';
 import { isTouchDevice, useRaf } from './util';
 
 const BOOT_LINES = [
-  'Rasterising tiles…',
+  'Requesting a GPU adapter…',
+  'Measuring rooms…',
   'Brewing tea…',
   'Detaching instances…',
   'Teaching a cursor to walk…',
-  'Compiling 41 shaders…',
+  'Compiling node materials…',
   'Planting fractals…',
 ];
 
@@ -34,7 +38,7 @@ export function Boot() {
         <span className="ow-boot-icon" aria-hidden>
           ▢
         </span>
-        Untitled-1.canvas
+        Untitled-1 / House plan
       </div>
       <div className="ow-boot-bar">
         <i />
@@ -44,8 +48,10 @@ export function Boot() {
   );
 }
 
-/** The editor you start in: one selected artboard on an infinite canvas. */
+/** The editor you start in: the house plan, every room a frame, every hotspot a dotted box. */
 export function IntroChrome() {
+  const L = getHouse().layout;
+  const style = HOUSE_STYLES[L.design.style];
   const stage = useGame((s) => s.stage);
   const setStage = useGame((s) => s.setStage);
   const zoomRef = useRef<HTMLSpanElement>(null);
@@ -76,7 +82,7 @@ export function IntroChrome() {
             ◆
           </span>
           <span>Untitled-1</span>
-          <span className="ow-dim">— Edited</span>
+          <span className="ow-dim">/ House plan — Edited</span>
         </div>
         <div className="ow-editor-tools" aria-hidden>
           <span data-active>V</span>
@@ -97,38 +103,40 @@ export function IntroChrome() {
       <aside className="ow-editor-left ow-desktop-only">
         <div className="ow-editor-section">Layers</div>
         <div className="ow-editor-layer" data-selected>
-          # Frame 1 (final)
+          ▦ House
         </div>
-        <div className="ow-editor-layer ow-indent">✧ Tony (wordmark)</div>
-        <div className="ow-editor-layer ow-indent">▣ Amanita</div>
-        <div className="ow-editor-layer ow-indent">T Bio</div>
-        <div className="ow-editor-layer ow-indent">◇ he / they</div>
+        {L.rooms.map((r) => (
+          <div key={r.index} className="ow-editor-layer ow-indent">
+            # {r.def.name} <span className="ow-dim">{r.def.hotspots.filter((h) => r.place.furniture[h.id]).length}</span>
+          </div>
+        ))}
         <div className="ow-editor-section">Pages</div>
-        <div className="ow-editor-layer">Untitled-1</div>
+        <div className="ow-editor-layer">House plan</div>
+        <div className="ow-editor-layer ow-dim">Island (locked)</div>
       </aside>
       <aside className="ow-editor-right-panel ow-desktop-only">
-        <div className="ow-editor-section">Frame</div>
+        <div className="ow-editor-section">Plan</div>
         <dl className="ow-props">
           <dt>W</dt>
-          <dd>1440</dd>
+          <dd>{L.width} tiles</dd>
           <dt>H</dt>
-          <dd>900</dd>
-          <dt>Fill</dt>
+          <dd>{L.height} tiles</dd>
+          <dt>Rooms</dt>
+          <dd>{L.rooms.length}</dd>
+          <dt>Style</dt>
           <dd>
-            <i className="ow-swatch" style={{ background: '#09090b' }} /> 09090B
+            <i className="ow-swatch" style={{ background: style.wall[0] }} /> {style.name}
           </dd>
-          <dt>Clip</dt>
-          <dd>Off</dd>
         </dl>
-        <div className="ow-editor-section">Effects</div>
+        <div className="ow-editor-section">Construction</div>
         <dl className="ow-props">
-          <dt>Unfold</dt>
-          <dd>On zoom out</dd>
-          <dt>Depth</dt>
-          <dd>2.5D → 3D</dd>
+          <dt>Walls</dt>
+          <dd>Rise on zoom out</dd>
+          <dt>Furniture</dt>
+          <dd>{L.hotspots.filter((h) => h.furniture).length} pieces</dd>
         </dl>
       </aside>
-      <SelectionOverlay forceId="fixture:hero" />
+      <RoomLabels />
       <div className="ow-editor-bottom">
         <div className="ow-zoom-pill">
           <button onClick={() => zoomBy(1.25)} aria-label="Zoom out">
@@ -143,7 +151,7 @@ export function IntroChrome() {
           <span className="ow-hint-arrow" aria-hidden>
             ↘
           </span>
-          {touch ? 'Pinch to zoom out' : 'Scroll to zoom out'} · or double-tap the frame
+          {touch ? 'Pinch out to build it' : 'Scroll out to build it'} · or press Present
         </div>
       </div>
     </div>
@@ -161,13 +169,17 @@ export function TopBar() {
   const togglePlugin = useGame((s) => s.togglePlugin);
   const setDialogue = useGame((s) => s.setDialogue);
   const [menu, setMenu] = useState(false);
-  const zone = zoneId ? zoneById.get(zoneId) : null;
+  const location = useGame((s) => s.location);
+  const buildMode = useGame((s) => s.buildMode);
+  const zone = zoneId && !zoneId.startsWith('room:') ? zoneById.get(zoneId) : null;
+  const room = zoneId?.startsWith('room:') ? getHouse().layout.rooms[Number(zoneId.slice(5))] : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'v' || e.key === 'V') setTool('move');
+      if (e.key === 'b' || e.key === 'B') toggleBuildMode();
       if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
         setTool('text');
@@ -182,8 +194,10 @@ export function TopBar() {
       <div className="ow-crumb ow-panel">
         <span className="ow-crumb-file">Untitled-1</span>
         <span className="ow-dim">›</span>
-        <span style={{ color: zone?.color ?? '#a1a1aa' }}>#</span>
-        <span className="ow-crumb-zone">{zone?.name ?? 'Canvas'}</span>
+        <span className="ow-dim">{location === 'house' ? 'House' : 'Island'}</span>
+        <span className="ow-dim">›</span>
+        <span style={{ color: zone?.color ?? (room ? '#d6a35c' : '#a1a1aa') }}>#</span>
+        <span className="ow-crumb-zone">{room?.def.name ?? zone?.name ?? 'Canvas'}</span>
       </div>
       <div className="ow-toolbar ow-panel" role="toolbar" aria-label="Tools">
         <button data-active={tool === 'move'} onClick={() => setTool('move')} title="Move (V): drag props to throw them" aria-label="Move tool">
@@ -197,6 +211,11 @@ export function TopBar() {
         <button onClick={() => emit({ type: 'rewind' })} title="Undo physics (⌘Z)" aria-label="Undo physics">
           ↶
         </button>
+        {location === 'house' && (
+          <button data-active={buildMode} onClick={() => toggleBuildMode()} title="Building mode (B)" aria-label="Building mode">
+            <TabIcon tab="hammer" size={16} />
+          </button>
+        )}
         <span className="ow-toolbar-sep" />
         <button onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-label="Menu" title="Menu">
           ≡
@@ -214,7 +233,7 @@ export function TopBar() {
             {dialOpen ? 'Hide' : 'Show'} DialKit
           </button>
           <button role="menuitem" onClick={() => replayIntro()}>
-            Flatten to artboard
+            Flatten to blueprint
           </button>
           <a role="menuitem" href="/classic">
             Classic site

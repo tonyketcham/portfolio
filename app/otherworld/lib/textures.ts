@@ -36,7 +36,11 @@ export function loadArt(src: string): Promise<THREE.Texture> {
       tex.needsUpdate = true;
       resolve(tex);
     };
-    img.onerror = () => reject(new Error(`Could not load ${src}`));
+    img.onerror = () => {
+      // Don't cache failures: a network hiccup shouldn't blank the piece for the session.
+      artCache.delete(src);
+      reject(new Error(`Could not load ${src}`));
+    };
     img.src = encodeURI(src);
   });
   artCache.set(src, promise);

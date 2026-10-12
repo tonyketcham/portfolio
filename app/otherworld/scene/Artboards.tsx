@@ -20,7 +20,7 @@ import { emit } from '../state/events';
 import { registerInteractable, runtime } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
 import { getWorld, seedOf, type WorkPlacement } from '../world/map';
-import { revealScale, srgbCached } from './globals';
+import { revealScale } from './globals';
 import { Label } from './Label';
 import { Revealed } from './Revealed';
 
@@ -116,7 +116,7 @@ function applyFx(material: ArtMaterial, work: Work, hover: number, selected: num
   u.uBreathe.value = t.Artboards.breathe;
   u.uHover.value = hover;
   u.uSelected.value = selected;
-  (u.uAccent.value as THREE.Vector3).copy(srgbCached(t.Artboards.selection));
+  u.uAccent.value.set(t.Artboards.selection);
 }
 
 // ── upright frame ────────────────────────────────────────────────────────────

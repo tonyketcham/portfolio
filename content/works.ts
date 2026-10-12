@@ -72,7 +72,8 @@ export type SkillId =
   | 'physics'
   | 'wandering'
   | 'curiosity'
-  | 'generative';
+  | 'generative'
+  | 'construction';
 
 export interface Work {
   /** Unique, url-safe. Also the seed for anything procedural about this work. */

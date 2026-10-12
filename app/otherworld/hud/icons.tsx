@@ -73,6 +73,14 @@ const TAB_ICONS: Record<string, { rows: string[]; palette: Record<string, string
     rows: ['...m....', '..mmm...', 'mmmwmmm.', '..mmm..c', '...m..cc', '.....ccc', '..c...cc', '.......c'],
     palette: { m: '#e879f9', w: '#ffffff', c: '#22d3ee' },
   },
+  house: {
+    rows: ['...rr...', '..rrrr..', '.rrrrrr.', 'rrrrrrrr', '.wwwwww.', '.wbbwdw.', '.wbbwdw.', '.wwwwdw.'],
+    palette: { r: '#b91c1c', w: '#e7e5e4', b: '#60a5fa', d: '#78350f' },
+  },
+  hammer: {
+    rows: ['.kkkk...', '.kkkkk..', '.kkk....', '...w....', '....w...', '.....w..', '......w.', '.......w'],
+    palette: { k: '#a1a1aa', w: '#b45309' },
+  },
   plugins: {
     rows: ['..k..k..', '..k..k..', '.zzzzzz.', '.zzzzzz.', '.zzzzzz.', '..zzzz..', '...zz...', '...kk...'],
     palette: { k: '#d4d4d8', z: '#71717a' },

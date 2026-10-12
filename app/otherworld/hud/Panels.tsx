@@ -13,6 +13,7 @@ import { runtime } from '../state/runtime';
 import { SKILLS, XP_TABLE, levelForXp, progressToNext } from '../state/skills';
 import { PLUGIN_INFO, gameState, totalLevel, useGame, type Plugins, type Tab } from '../state/store';
 import { getWorld } from '../world/map';
+import { HousePanel } from './HouseHud';
 import { ItemIcon, SkillGlyph, TabIcon } from './icons';
 import { longPressHandlers } from './util';
 
@@ -22,6 +23,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'quests', label: 'Quests' },
   { id: 'layers', label: 'Layers' },
   { id: 'effects', label: 'Effects' },
+  { id: 'house', label: 'House options' },
   { id: 'plugins', label: 'Plugins' },
 ];
 
@@ -69,6 +71,7 @@ export function SidePanel() {
         {tab === 'quests' && <Quests />}
         {tab === 'layers' && <Layers />}
         {tab === 'effects' && <Effects />}
+        {tab === 'house' && <HousePanel />}
         {tab === 'plugins' && <PluginsPanel />}
       </div>
     </section>

@@ -5,12 +5,14 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from
  * The navigator: an old-school minimap that rotates with the camera (tap to
  * walk, tap the compass to face north), and the orbs beside it.
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import * as THREE from 'three';
+import { FURNITURE } from '../house/furniture';
 import { emit, sfx } from '../state/events';
-import { runtime } from '../state/runtime';
+import { place, runtime } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
-import { HALF, SIZE, T, getWorld, inBounds, tileIndex, worldToTile, type TileKind } from '../world/map';
+import { HALF, SIZE, T, getWorld, tileIndex, type TileKind } from '../world/map';
+import { getHouse, onHouseChange } from '../world/places';
 import { useRaf } from './util';
 
 const PX = 3; // pixels per tile in the base image
@@ -69,6 +71,55 @@ function useBaseImage() {
   }, []);
 }
 
+const FLOOR_COLORS: Record<string, string> = {
+  planks: '#8a5a34',
+  boards: '#5e3f27',
+  stone: '#77736a',
+  marble: '#d6d3d1',
+  carpet: '#4c1d33',
+  grass: '#4f7d33',
+};
+
+/** The house plan: floors, furniture footprints, walls with their door gaps. */
+function useHouseImage() {
+  const version = useSyncExternalStore(onHouseChange, () => getHouse().version, () => 0);
+  return useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const L = getHouse().layout;
+    const c = document.createElement('canvas');
+    c.width = L.width * PX;
+    c.height = L.height * PX;
+    const ctx = c.getContext('2d')!;
+    for (const r of L.rooms) {
+      ctx.fillStyle = FLOOR_COLORS[r.def.floor] ?? '#71717a';
+      ctx.fillRect(r.i0 * PX, r.j0 * PX, 8 * PX, 8 * PX);
+    }
+    for (const h of L.hotspots) {
+      if (!h.furniture || h.def.wall || h.def.walkable || !h.rect[2]) continue;
+      ctx.fillStyle = FURNITURE.get(h.furniture)?.showsWork ? '#e879f9' : 'rgba(9,9,11,0.55)';
+      ctx.fillRect(h.rect[0] * PX + 0.5, h.rect[1] * PX + 0.5, h.rect[2] * PX - 1, h.rect[3] * PX - 1);
+    }
+    ctx.strokeStyle = '#fafafa';
+    ctx.lineWidth = 1;
+    for (const s of L.sides) {
+      if (s.kind === 'hedge') continue;
+      const tx = (s.b[0] - s.a[0]) / 8;
+      const tz = (s.b[1] - s.a[1]) / 8;
+      let u = 0;
+      const gaps = s.openings.filter((o) => o.kind === 'door').sort((a, b) => a.u0 - b.u0);
+      for (const o of [...gaps, { u0: 8, u1: 8 }]) {
+        ctx.beginPath();
+        ctx.moveTo((s.a[0] + tx * u) * PX, (s.a[1] + tz * u) * PX);
+        ctx.lineTo((s.a[0] + tx * o.u0) * PX, (s.a[1] + tz * o.u0) * PX);
+        ctx.stroke();
+        u = o.u1;
+      }
+    }
+    return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
+}
+
 function shade(hex: string) {
   if (hex === 'transparent') return hex;
   const n = parseInt(hex.slice(1), 16);
@@ -81,7 +132,8 @@ function shade(hex: string) {
 export function Minimap() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const compass = useRef<HTMLButtonElement>(null);
-  const base = useBaseImage();
+  const islandImage = useBaseImage();
+  const houseImage = useHouseImage();
   const enabled = useGame((s) => s.plugins.minimap);
   const frame = useRef(0);
   const zoom = 1.25;
@@ -99,7 +151,12 @@ export function Minimap() {
     frame.current++;
     if (frame.current % 2) return;
     const c = canvas.current;
+    const inHouse = runtime.location === 'house';
+    const base = inHouse ? houseImage : islandImage;
     if (!c || !base) return;
+    const L = getHouse().layout;
+    const originX = inHouse ? -L.ox : HALF;
+    const originZ = inHouse ? -L.oz : HALF;
     const ctx = c.getContext('2d')!;
     const size = c.width;
     const r = size / 2;
@@ -119,7 +176,7 @@ export function Minimap() {
     ctx.rotate(theta);
     ctx.scale(zoom, zoom);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(base, -(p.x + HALF) * PX, -(p.z + HALF) * PX);
+    ctx.drawImage(base, -(p.x + originX) * PX, -(p.z + originZ) * PX);
 
     // dots: npcs yellow, items red, other players white
     for (const it of runtime.interactables.values()) {
@@ -138,8 +195,9 @@ export function Minimap() {
     // destination flag
     const dest = gameState().destination;
     if (dest && runtime.player.moving) {
-      const dx = (dest.tile[0] - HALF + 0.5 - p.x) * PX;
-      const dz = (dest.tile[1] - HALF + 0.5 - p.z) * PX;
+      const [tx, tz] = place().tileCenter(dest.tile[0], dest.tile[1]);
+      const dx = (tx - p.x) * PX;
+      const dz = (tz - p.z) * PX;
       ctx.fillStyle = '#ef4444';
       ctx.fillRect(dx, dz - 6, 1.5, 7);
       ctx.fillRect(dx + 1.5, dz - 6, 4, 3);
@@ -189,8 +247,8 @@ export function Minimap() {
     const rz = (x * Math.sin(theta) + y * Math.cos(theta)) / (PX * zoom);
     const wx = runtime.player.pos.x + rx;
     const wz = runtime.player.pos.z + rz;
-    const tile = worldToTile(wx, wz);
-    if (!inBounds(tile[0], tile[1])) return;
+    const tile = place().worldToTile(wx, wz);
+    if (!place().inBounds(tile[0], tile[1])) return;
     emit({ type: 'cross', x: e.clientX, y: e.clientY, color: 'yellow' });
     sfx('click');
     gameState().walkTo(tile);

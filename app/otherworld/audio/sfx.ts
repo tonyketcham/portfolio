@@ -131,6 +131,32 @@ function play(name: SfxName, pitch = 1) {
     case 'pop':
       tone('sine', 600 * p, 1300 * p, 0.05, 0.06);
       break;
+    case 'hammer':
+      // tok… tok… tok: three wooden knocks
+      for (let i = 0; i < 3; i++) {
+        tone('square', 330 * p, 140 * p, 0.05, 0.06, i * 0.16);
+        noise(0.04, 0.06, 'bandpass', 2200, 900, i * 0.16);
+      }
+      break;
+    case 'saw':
+      for (let i = 0; i < 4; i++) noise(0.12, 0.05, 'bandpass', 1800 + (i % 2) * 900, 1200, i * 0.13);
+      break;
+    case 'thunk':
+      tone('sine', 120 * p, 50 * p, 0.18, 0.18);
+      noise(0.06, 0.05, 'lowpass', 900, 200);
+      break;
+    case 'portal':
+      tone('sine', 220, 880, 0.6, 0.05);
+      tone('triangle', 330, 1320, 0.7, 0.03, 0.05);
+      noise(0.8, 0.04, 'bandpass', 800, 5000);
+      break;
+    case 'bell':
+      [1568, 2093, 1568].forEach((f, i) => tone('sine', f, f * 0.99, 0.6, 0.05, i * 0.22));
+      break;
+    case 'kettle':
+      noise(1.6, 0.05, 'bandpass', 2400, 5200);
+      tone('sine', 1400, 1900, 1.4, 0.015, 0.4);
+      break;
   }
 }
 
@@ -139,7 +165,7 @@ export function installSfx() {
   if (installed || typeof window === 'undefined') return () => {};
   installed = true;
   const unlock = () => {
-    if (gameState().plugins.sound) audio()?.resume();
+    if (gameState().plugins.sound) audio()?.resume().catch(() => undefined);
   };
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);
@@ -147,7 +173,7 @@ export function installSfx() {
     if (e.type !== 'sfx' || !gameState().plugins.sound) return;
     const c = audio();
     if (!c) return;
-    if (c.state === 'suspended') c.resume();
+    if (c.state === 'suspended') c.resume().catch(() => undefined);
     try {
       play(e.name, e.pitch);
     } catch {

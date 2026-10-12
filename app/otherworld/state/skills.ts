@@ -11,6 +11,13 @@ export interface SkillDef {
 
 export const SKILLS: SkillDef[] = [
   {
+    id: 'construction',
+    name: 'Construction',
+    color: '#d6a35c',
+    blurb: 'Build furniture in your house. Weirder pieces need higher levels.',
+    glyph: ['..###..', '..#.#..', '..###..', '...#...', '...#...', '..#.#..', '.#...#.'],
+  },
+  {
     id: 'tooling',
     name: 'Tooling',
     color: '#60a5fa',

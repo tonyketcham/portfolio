@@ -1,5 +1,5 @@
 /** Prop geometry builders that don't need React (amanitas). */
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry32 } from '../lib/random';
 
@@ -37,5 +37,4 @@ export function buildShroom(seed: number) {
   return merged;
 }
 
-export const shroomMaterial = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-
+export const shroomMaterial = new THREE.MeshLambertNodeMaterial({ vertexColors: true, flatShading: true });

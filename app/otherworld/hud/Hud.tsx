@@ -3,6 +3,7 @@
 import { useGame } from '../state/store';
 import { Boot, IntroChrome, TopBar } from './Chrome';
 import { Chat, ContextMenu, Dialogue, LevelUp, XpDrops } from './Game';
+import { BuildMenu, LoadingBox } from './HouseHud';
 import { Inspector } from './Inspector';
 import { Minimap } from './Minimap';
 import { ClickCrosses, Fps, MouseoverText, Overheads, SelectionOverlay } from './Overlays';
@@ -40,11 +41,13 @@ export function Hud() {
             <Dialogue />
             <Inspector />
             <LevelUp />
+            <BuildMenu />
             <Fps />
           </>
         )}
       </div>
       <ContextMenu />
+      <LoadingBox />
     </>
   );
 }

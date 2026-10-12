@@ -3,7 +3,7 @@
 import { useFrame } from '@react-three/fiber';
 import { CylinderCollider, RigidBody } from '@react-three/rapier';
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import type * as THREE from 'three';
+import type * as THREE from 'three/webgpu';
 import { tweaks } from '../debug/tweaks';
 import {
   createGrassAssets,
@@ -33,10 +33,10 @@ function Trees() {
 
   return (
     <>
-      <instancedMesh ref={trunks} args={[geos.trunk, mats.trunk, trees.length]} frustumCulled={false} />
-      <instancedMesh ref={round} args={[geos.blob, mats.leaf, Math.max(1, groups.round.length)]} count={groups.round.length} frustumCulled={false} />
-      <instancedMesh ref={pine} args={[geos.pine, mats.leaf, Math.max(1, groups.pine.length)]} count={groups.pine.length} frustumCulled={false} />
-      <instancedMesh ref={shader} args={[geos.shaderBlob, mats.shader, Math.max(1, groups.shader.length)]} count={groups.shader.length} frustumCulled={false} />
+      <instancedMesh ref={trunks} args={[geos.trunk, mats.trunk, trees.length]} frustumCulled={false} castShadow receiveShadow />
+      <instancedMesh ref={round} args={[geos.blob, mats.leaf, Math.max(1, groups.round.length)]} count={groups.round.length} frustumCulled={false} castShadow receiveShadow />
+      <instancedMesh ref={pine} args={[geos.pine, mats.leaf, Math.max(1, groups.pine.length)]} count={groups.pine.length} frustumCulled={false} castShadow receiveShadow />
+      <instancedMesh ref={shader} args={[geos.shaderBlob, mats.shader, Math.max(1, groups.shader.length)]} count={groups.shader.length} frustumCulled={false} castShadow />
       <RigidBody type="fixed" colliders={false}>
         {trees.map((t, i) => (
           <CylinderCollider key={i} args={[0.6, 0.18 * t.scale]} position={[t.x, heightAt(world, t.x, t.z) + 0.6, t.z]} />
@@ -73,7 +73,7 @@ function Rocks() {
   useLayoutEffect(() => {
     if (mesh.current) layoutRocks(world, mesh.current);
   }, [world]);
-  return <instancedMesh ref={mesh} args={[geometry, material, Math.max(1, count)]} count={count} frustumCulled={false} />;
+  return <instancedMesh ref={mesh} args={[geometry, material, Math.max(1, count)]} count={count} frustumCulled={false} castShadow receiveShadow />;
 }
 
 export function Flora() {

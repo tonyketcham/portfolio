@@ -4,7 +4,15 @@
  */
 export type GameEvent =
   | { type: 'sfx'; name: SfxName; pitch?: number }
-  | { type: 'burst'; kind: 'dust' | 'hearts' | 'confetti' | 'steam' | 'spores' | 'sparkle'; x: number; y: number; z: number; count?: number }
+  | {
+      type: 'burst';
+      kind: 'dust' | 'sawdust' | 'hearts' | 'confetti' | 'steam' | 'spores' | 'sparkle' | 'embers' | 'magic';
+      x: number;
+      y: number;
+      z: number;
+      count?: number;
+    }
+  | { type: 'travel'; to: 'house' | 'island'; tile?: [number, number]; onArrive?: () => void }
   | { type: 'shake'; amount: number }
   | { type: 'spawn-letters'; text: string }
   | { type: 'drop-item'; item: import('./items').ItemStack }
@@ -32,7 +40,13 @@ export type SfxName =
   | 'error'
   | 'unfold'
   | 'kick'
-  | 'pop';
+  | 'pop'
+  | 'hammer'
+  | 'saw'
+  | 'thunk'
+  | 'portal'
+  | 'bell'
+  | 'kettle';
 
 type Listener = (event: GameEvent) => void;
 const listeners = new Set<Listener>();

@@ -1,0 +1,178 @@
+/**
+ * What furniture does when you use it. Each FurnitureDef lists action ids;
+ * this maps them to verbs that touch the rest of the game.
+ */
+import { profile } from '@/content/profile';
+import { works } from '@/content/works';
+import { giveTea, inspectWork, mushroomMode, travel, travelToWork } from '../state/actions';
+import { EFFECT_PRESETS } from '../state/effects';
+import { emit, sfx, type GameEvent } from '../state/events';
+import { sayOverhead } from '../state/runtime';
+import { gameState } from '../state/store';
+import type { PieceInstance } from './assemble';
+
+const BOOKS = [
+  'Grid Systems in Graphic Design',
+  'The Elements of Typographic Style',
+  'Interaction of Color',
+  'The Book of Shaders (printed, somehow)',
+  'Flour Water Salt Yeast',
+  'Designing Data-Intensive Applications',
+  'Thinking with Type',
+  'A Pattern Language',
+  'The Art of Fermentation',
+  'Generative Design',
+];
+
+const BUTLER = [
+  'Anonymous Axolotl joined the file.',
+  'Anonymous Axolotl: you rang? I was just leaving a comment on the fireplace.',
+  'Anonymous Axolotl: shall I tidy the layers? No? Very good.',
+  'Anonymous Axolotl: tea is in the kitchen. The Kettle has opinions.',
+  'Anonymous Axolotl: I renamed "Rectangle 12". Just kidding. I would never.',
+  'Anonymous Axolotl left the file.',
+];
+
+let presetIndex = 0;
+let butlerLine = 0;
+
+type BurstKind = Extract<GameEvent, { type: 'burst' }>['kind'];
+
+function burst(kind: BurstKind, p: PieceInstance, y = 1, count = 14) {
+  emit({ type: 'burst', kind, x: p.group.position.x, y, z: p.group.position.z, count });
+}
+
+/** The servant: a multiplayer cursor that is always somewhere in the file. */
+export function ringBell() {
+  sfx('bell');
+  const line = BUTLER[butlerLine % BUTLER.length];
+  butlerLine++;
+  gameState().say(line, 'npc');
+}
+
+export function runFurnitureAction(id: string, piece: PieceInstance) {
+  const g = gameState();
+  const name = piece.def.name;
+  const slug = piece.hotspot.work?.slug;
+  switch (id) {
+    case 'sit':
+      g.say(`You sit on the ${name.toLowerCase()} for a moment. It holds.`);
+      sayOverhead('*sits*', 2);
+      break;
+    case 'warm':
+      g.say('You warm your hands by the fire. The gradient stops drift a little warmer.');
+      burst('embers', piece, 0.9, 10);
+      break;
+    case 'search-books': {
+      const pick = BOOKS[Math.floor(Math.random() * BOOKS.length)];
+      g.say(`You pull out a book: "${pick}". You put it back exactly where it was.`);
+      g.addXp('curiosity', 4);
+      break;
+    }
+    case 'brew':
+      sfx('kettle');
+      burst('steam', piece, 1.6, 16);
+      window.setTimeout(() => {
+        if (giveTea()) {
+          gameState().say('The Kettle clicks off. You pour a cup of tea.');
+          gameState().addXp('tea', 12);
+        }
+      }, 900);
+      break;
+    case 'larder':
+      g.say(
+        ['You find a Perlin loaf. It is mostly noise.', 'A wedge of Voronoi cheese. All cells, no holes.', 'A jar of gradient jam, labelled "#ef4444 → #3b82f6".'][
+          Math.floor(Math.random() * 3)
+        ]
+      );
+      break;
+    case 'pump':
+      g.say('You pump some water. It comes out in exactly 4 colours.');
+      burst('sparkle', piece, 0.8, 8);
+      break;
+    case 'take-pixel':
+      if (g.addItem({ id: 'pixel' })) g.say('You take a loose pixel. It is warm.');
+      break;
+    case 'pet-cat':
+      g.say('You pet the cat. It purrs at 60fps.');
+      burst('hearts', piece, 0.6, 6);
+      break;
+    case 'ring-bell':
+      ringBell();
+      break;
+    case 'inspect-work':
+    case 'crystal':
+      if (slug) inspectWork(slug);
+      else g.say('Nothing hangs here yet. A good spot for something new.');
+      break;
+    case 'workbench':
+      g.say('You work at the bench. Flatpacks, mostly.');
+      break;
+    case 'node-bench':
+      g.setTab('effects');
+      g.say('You plug into the node bench. The world\'s own effect stack opens: drag the layers around.', 'fx');
+      g.addXp('shaders', 10);
+      break;
+    case 'tool-store':
+      g.say('Every tool here is load-bearing. You leave them where they are.');
+      break;
+    case 'tablets':
+      g.setTab('quests');
+      g.say('You prepare a tablet. Pick a piece in your quest list and you\'ll be taken straight to it.');
+      g.addXp('curiosity', 5);
+      break;
+    case 'spin-globe':
+      g.say('You spin the globe. It lands on the island. It always lands on the island.');
+      break;
+    case 'telescope':
+      emit({ type: 'focus-camera', x: piece.group.position.x, y: 6, z: piece.group.position.z - 4, distance: 6, pitch: -0.35 });
+      window.setTimeout(() => emit({ type: 'release-camera' }), 3500);
+      g.say('You look up. The stars are crosshairs. Of course they are.');
+      break;
+    case 'portal':
+      sfx('portal');
+      if (slug) travelToWork(slug);
+      else g.say('The portal is not directed anywhere yet.');
+      break;
+    case 'exit-portal':
+      sfx('portal');
+      travel('island');
+      break;
+    case 'scry':
+      g.say(`The pool shows: ${works.slice(0, 5).map((w) => w.title).join(', ')}… and more, all at once.`, 'fx');
+      break;
+    case 'pray-undo':
+      g.say('You pray at the altar of undo. The last few seconds of physics go back where they came from.', 'fx');
+      emit({ type: 'rewind' });
+      break;
+    case 'incense':
+      g.say('You light the incense. The room goes a bit soft around the edges.');
+      burst('magic', piece, 1.3, 10);
+      mushroomMode(8);
+      break;
+    case 'organ':
+      g.say('The monolith organ plays the only song it knows. 124 BPM. Forever.');
+      for (let i = 0; i < 8; i++) window.setTimeout(() => sfx('kick'), i * 484);
+      break;
+    case 'admire':
+      g.say('You admire the cursor. It points at you, a little accusingly.');
+      break;
+    case 'adventure-log':
+      g.say(`${profile.name}: ${profile.lines.join(' · ')}.`, 'fx');
+      for (const w of works.filter((x) => x.role).slice(0, 3)) g.say(`${w.title}: ${w.role}.`);
+      break;
+    case 'quest-list':
+      g.setTab('quests');
+      break;
+    case 'preset-altar': {
+      const names = Object.keys(EFFECT_PRESETS);
+      presetIndex = (presetIndex + 1) % names.length;
+      g.applyPreset(names[presetIndex]);
+      g.say(`You pray at the preset altar. The world switches to ${EFFECT_PRESETS[names[presetIndex]].label}.`, 'fx');
+      burst('magic', piece, 1.6, 18);
+      break;
+    }
+    default:
+      g.say('Nothing interesting happens.');
+  }
+}

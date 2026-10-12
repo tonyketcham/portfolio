@@ -12,8 +12,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { workBySlug } from '@/content/works';
 import { zones } from '@/content/zones';
+import { canvasTexture } from '../house/furniture/common';
+import { arch, portalSurface } from '../house/furniture/garden';
+import { Kit } from '../house/kit';
+import { furnitureMaterial } from '../house/materials';
 import { mulberry32 } from '../lib/random';
 import { cssFont } from '../lib/textures';
+import { toggleBuildMode, travel } from '../state/actions';
 import { emit, on, sfx } from '../state/events';
 import { TEAS } from '../state/items';
 import { npcSay, registerInteractable, runtime, type InteractAction } from '../state/runtime';
@@ -849,12 +854,77 @@ function FairyRing({ fixture }: { fixture: Fixture }) {
   );
 }
 
+/**
+ * The way home: a stone arch on the plaza whose opening is the house, seen
+ * from a long way off. Enter it and the island fades to the canvas.
+ */
+function HousePortal({ fixture }: { fixture: Fixture }) {
+  const ref = useRef<THREE.Group>(null);
+  useReveal(fixture, ref);
+  const parts = useMemo(() => {
+    const k = new Kit(11);
+    k.push([0, 0, 0]);
+    arch(k, '#8b8a86', 1.5, 2.1);
+    k.box(0.9, 0.2, 0.04, '#3b82f6', [0, 2.95, 0.24], { jitter: 0 });
+    k.pop();
+    const surface = portalSurface(3, 1.5, 1.35, 0.24, ['#0b1020', '#f59e0b', '#fde68a']);
+    return { geometry: k.build()!, surface: surface.object };
+  }, []);
+  const label = useMemo(
+    () =>
+      canvasTexture(320, 56, (g, w, h) => {
+        g.fillStyle = '#3b82f6';
+        g.fillRect(0, 0, w, h);
+        g.fillStyle = '#fff';
+        g.font = 'bold 30px ui-sans-serif, system-ui, sans-serif';
+        g.textBaseline = 'middle';
+        g.fillText('Untitled-1 / House', 18, h / 2 + 2);
+      }),
+    []
+  );
+  const enter = () => {
+    sfx('portal');
+    travel('house');
+  };
+  useFixture(fixture, ref, {
+    examine: 'A portal to your house. Every house is in the same place: right through here.',
+    actions: [
+      { verb: 'Home', run: enter, approach: true },
+      {
+        verb: 'Build mode',
+        approach: true,
+        run: () => {
+          sfx('portal');
+          travel('house', undefined, () => toggleBuildMode(true));
+        },
+      },
+      {
+        verb: "Friend's house",
+        approach: true,
+        run: () => gameState().say("Nobody else has a house here yet. They're probably still in Figma."),
+      },
+    ],
+  });
+  return (
+    <group ref={ref} position={[fixture.x, fixture.y, fixture.z]} rotation-y={fixture.yaw}>
+      <mesh geometry={parts.geometry} material={furnitureMaterial} castShadow receiveShadow />
+      <primitive object={parts.surface} />
+      <mesh position={[0, 3.05, 0.265]}>
+        <planeGeometry args={[1.1, 0.19]} />
+        <meshBasicMaterial map={label} />
+      </mesh>
+    </group>
+  );
+}
+
 export function Fixtures() {
   const world = getWorld();
   return (
     <>
       {world.fixtures.map((f) => {
         switch (f.kind) {
+          case 'house-portal':
+            return <HousePortal key={f.id} fixture={f} />;
           case 'stall':
             return <TeaStall key={f.id} fixture={f} />;
           case 'tony':

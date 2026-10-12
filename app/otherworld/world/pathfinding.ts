@@ -1,10 +1,19 @@
 /**
- * 8-directional A* over the tile grid, old-school style: diagonals are allowed
- * only when both orthogonal neighbours are free (no corner cutting).
+ * 8-directional A* over a tile grid, old-school style: diagonals are allowed
+ * only when both orthogonal neighbours are free (no corner cutting). Works on
+ * any Grid: the island's heightfield tiles or the house's rooms (whose walls
+ * sit on tile edges, so steps are checked edge by edge).
  */
-import { SIZE, inBounds, isWalkable, tileIndex, type WorldMap } from './map';
-
 export type TilePos = [number, number];
+
+export interface Grid {
+  width: number;
+  height: number;
+  inBounds(i: number, j: number): boolean;
+  walkable(i: number, j: number): boolean;
+  /** Can you step from (i, j) by (di, dj)? Must include the target's walkability. */
+  canStep(i: number, j: number, di: number, dj: number): boolean;
+}
 
 const DIRS: [number, number, number][] = [
   [1, 0, 1],
@@ -67,15 +76,17 @@ class Heap {
  * Returns the tiles to step through (excluding `from`). If `to` is blocked the
  * path ends on the reachable tile nearest to it, like clicking a tree.
  */
-export function findPath(map: WorldMap, from: TilePos, to: TilePos, maxNodes = 6000): TilePos[] {
-  if (!inBounds(to[0], to[1])) return [];
-  const n = SIZE * SIZE;
+export function findPath(grid: Grid, from: TilePos, to: TilePos, maxNodes = 6000): TilePos[] {
+  if (!grid.inBounds(to[0], to[1]) || !grid.inBounds(from[0], from[1])) return [];
+  const W = grid.width;
+  const tileIndex = (i: number, j: number) => j * W + i;
+  const n = W * grid.height;
   const g = new Float32Array(n).fill(Infinity);
   const f = new Float32Array(n).fill(Infinity);
   const came = new Int32Array(n).fill(-1);
   const closed = new Uint8Array(n);
   const start = tileIndex(from[0], from[1]);
-  const goalWalkable = isWalkable(map, to[0], to[1]);
+  const goalWalkable = grid.walkable(to[0], to[1]);
 
   g[start] = 0;
   f[start] = octile(from[0], from[1], to[0], to[1]);
@@ -90,8 +101,8 @@ export function findPath(map: WorldMap, from: TilePos, to: TilePos, maxNodes = 6
     const cur = open.pop();
     if (closed[cur]) continue;
     closed[cur] = 1;
-    const ci = cur % SIZE;
-    const cj = (cur / SIZE) | 0;
+    const ci = cur % W;
+    const cj = (cur / W) | 0;
     const h = octile(ci, cj, to[0], to[1]);
     if (h < bestH) {
       bestH = h;
@@ -109,8 +120,7 @@ export function findPath(map: WorldMap, from: TilePos, to: TilePos, maxNodes = 6
     for (const [di, dj, cost] of DIRS) {
       const ni = ci + di;
       const nj = cj + dj;
-      if (!isWalkable(map, ni, nj)) continue;
-      if (di !== 0 && dj !== 0 && (!isWalkable(map, ci + di, cj) || !isWalkable(map, ci, cj + dj))) continue;
+      if (!grid.canStep(ci, cj, di, dj)) continue;
       const k = tileIndex(ni, nj);
       if (closed[k]) continue;
       const tentative = g[cur] + cost;
@@ -126,7 +136,7 @@ export function findPath(map: WorldMap, from: TilePos, to: TilePos, maxNodes = 6
   const path: TilePos[] = [];
   let k = best;
   while (k !== start && k !== -1) {
-    path.push([k % SIZE, (k / SIZE) | 0]);
+    path.push([k % W, (k / W) | 0]);
     k = came[k];
   }
   return path.reverse();

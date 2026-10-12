@@ -16,15 +16,16 @@ import { tweaks } from '../debug/tweaks';
 import { clamp } from '../lib/random';
 import { examine } from '../state/actions';
 import { emit, sfx } from '../state/events';
-import { interactableFor, runtime, type InteractAction, type Interactable } from '../state/runtime';
+import { interactableFor, place, runtime, type InteractAction, type Interactable } from '../state/runtime';
 import { gameState, type MenuOption } from '../state/store';
-import { getWorld, heightAt, inBounds, worldToTile } from '../world/map';
-import { TileChannel, tileState } from './Terrain';
+import { placeAt } from '../world/places';
+import { TileChannel } from './Terrain';
 
 const raycaster = new THREE.Raycaster();
 const heldKeys = new Set<string>();
 const ndc = new THREE.Vector2();
 const groundPoint = new THREE.Vector3();
+const objPos = new THREE.Vector3();
 
 export function displayName(it: Interactable) {
   return it.level ? `${it.name} (level-${it.level})` : it.name;
@@ -53,6 +54,8 @@ function setRay(clientX: number, clientY: number) {
   return true;
 }
 
+const xz = (v: THREE.Vector3): [number, number] => [v.x, v.z];
+
 export function pickInteractables(clientX: number, clientY: number, limit = 4, includePassive = false): Interactable[] {
   if (!setRay(clientX, clientY)) return [];
   const g = gameState();
@@ -61,7 +64,10 @@ export function pickInteractables(clientX: number, clientY: number, limit = 4, i
     if (it.passive && !includePassive) continue;
     if (it.layer && (g.hidden[it.layer] || g.locked[it.layer])) continue;
     const o = it.object();
-    if (o && o.visible) objects.push(o);
+    if (!o || !o.visible) continue;
+    // only things in the place you're standing in (the other place is hidden, not gone)
+    if (it.id !== 'player' && placeAt(...xz(o.getWorldPosition(objPos))).id !== runtime.location) continue;
+    objects.push(o);
   }
   const hits = raycaster.intersectObjects(objects, true);
   const out: Interactable[] = [];
@@ -76,17 +82,17 @@ export function pickInteractables(clientX: number, clientY: number, limit = 4, i
 
 export function pickGround(clientX: number, clientY: number) {
   if (!setRay(clientX, clientY)) return null;
-  const world = getWorld();
+  const P = place();
   const { origin, direction } = raycaster.ray;
   if (direction.y > -0.01) return null;
   let h = 0.2;
   for (let i = 0; i < 5; i++) {
     const t = (h - origin.y) / direction.y;
     groundPoint.copy(origin).addScaledVector(direction, t);
-    h = heightAt(world, groundPoint.x, groundPoint.z);
+    h = P.heightAt(groundPoint.x, groundPoint.z);
   }
-  const tile = worldToTile(groundPoint.x, groundPoint.z);
-  return { point: groundPoint.clone(), tile, valid: inBounds(tile[0], tile[1]) };
+  const tile = P.worldToTile(groundPoint.x, groundPoint.z);
+  return { point: groundPoint.clone(), tile, valid: P.inBounds(tile[0], tile[1]) };
 }
 
 function openMenuAt(x: number, y: number) {
@@ -134,7 +140,8 @@ function openMenuAt(x: number, y: number) {
 function dialPanelFor(it: Interactable | undefined): string {
   if (!it) return 'World';
   if (it.id === 'player') return 'Player';
-  if (it.id.startsWith('work:') || it.id === 'fixture:hero') return 'Artboards';
+  if (it.id.startsWith('furn:') || it.id.startsWith('hotspot:')) return 'House';
+  if (it.id.startsWith('work:')) return 'Artboards';
   if (it.id.startsWith('critter:') || it.id.startsWith('letter:') || it.id.startsWith('drop:') || it.id.startsWith('shroom:'))
     return 'Physics';
   if (it.id.startsWith('butterfly:') || it.id.startsWith('fixture:fractal')) return 'Flora';
@@ -221,14 +228,14 @@ export function Interaction() {
       const hits = pickInteractables(runtime.pointer.x, runtime.pointer.y, 1);
       runtime.hoverId = hits[0]?.id ?? null;
       const ground = pickGround(runtime.pointer.x, runtime.pointer.y);
-      if (lastHoverTile) tileState.set(lastHoverTile[0], lastHoverTile[1], TileChannel.Hover, false);
+      if (lastHoverTile) place().tiles.set(lastHoverTile[0], lastHoverTile[1], TileChannel.Hover, false);
       lastHoverTile = null;
       if (ground?.valid) {
         runtime.hoverTile = ground.tile;
         runtime.lookTarget.copy(ground.point);
         runtime.lookActive = 1;
         if (!hits[0] && g.plugins.destinationTile) {
-          tileState.set(ground.tile[0], ground.tile[1], TileChannel.Hover, true);
+          place().tiles.set(ground.tile[0], ground.tile[1], TileChannel.Hover, true);
           lastHoverTile = ground.tile;
         }
       } else {
@@ -397,7 +404,7 @@ export function Interaction() {
       runtime.pointer.inside = false;
       runtime.hoverId = null;
       runtime.lookActive = 0;
-      if (lastHoverTile) tileState.set(lastHoverTile[0], lastHoverTile[1], TileChannel.Hover, false);
+      if (lastHoverTile) place().tiles.set(lastHoverTile[0], lastHoverTile[1], TileChannel.Hover, false);
       lastHoverTile = null;
     };
     const onWheel = (e: WheelEvent) => {
