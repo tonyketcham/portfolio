@@ -22,6 +22,7 @@ import { gameState, useGame } from '../state/store';
 import { getWorld, seedOf, type WorkPlacement } from '../world/map';
 import { revealScale, srgbCached } from './globals';
 import { Label } from './Label';
+import { Revealed } from './Revealed';
 
 const MAX_W = 3.5;
 const MAX_H = 2.5;
@@ -246,9 +247,11 @@ function WorkArtboard({ placement }: { placement: WorkPlacement }) {
           />
         )}
       </group>
-      <RigidBody type="fixed" colliders={false} position={[0, standH + h / 2, 0]}>
-        <CuboidCollider args={[w / 2, h / 2 + standH / 2, 0.08]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false} position={[0, standH + h / 2, 0]}>
+          <CuboidCollider args={[w / 2, h / 2 + standH / 2, 0.08]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }
@@ -363,9 +366,11 @@ function ArtTree({ placement }: { placement: WorkPlacement }) {
           <meshBasicMaterial color={palette} />
         </instancedMesh>
       </group>
-      <RigidBody type="fixed" colliders={false}>
-        <CylinderCollider args={[trunkH / 2, 0.14]} position={[0, trunkH / 2, 0]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false}>
+          <CylinderCollider args={[trunkH / 2, 0.14]} position={[0, trunkH / 2, 0]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }

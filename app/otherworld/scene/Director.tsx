@@ -146,6 +146,9 @@ export function IntroDirector() {
   const stage = useGame((s) => s.stage);
   const { size } = useThree();
   const timer = useRef(0);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  const aspect = () => sizeRef.current.width / Math.max(1, sizeRef.current.height);
 
   // Leaving boot: decide whether to play the intro.
   useEffect(() => {
@@ -184,10 +187,10 @@ export function IntroDirector() {
       timer.current = 0;
       runtime.cam.yaw = WORLD_YAW;
       runtime.cam.pitch = WORLD_PITCH;
-      runtime.cam.distance = worldDistance(size.width / Math.max(1, size.height));
+      runtime.cam.distance = worldDistance(aspect());
       sfx('unfold');
     }
-  }, [stage, size]);
+  }, [stage]);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
@@ -216,7 +219,7 @@ export function IntroDirector() {
     if (skipped) {
       runtime.cam.yaw = WORLD_YAW;
       runtime.cam.pitch = WORLD_PITCH;
-      runtime.cam.distance = worldDistance(size.width / Math.max(1, size.height));
+      runtime.cam.distance = worldDistance(aspect());
     }
     const first = !g.introSeen;
     g.setStage('world');

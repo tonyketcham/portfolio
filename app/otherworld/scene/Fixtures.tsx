@@ -21,6 +21,7 @@ import { gameState, useGame } from '../state/store';
 import { getWorld, type Fixture } from '../world/map';
 import { revealScale } from './globals';
 import { Label } from './Label';
+import { Revealed } from './Revealed';
 
 function useReveal(fixture: Fixture, ref: RefObject<THREE.Group | null>) {
   const hidden = useGame((s) => !!s.hidden[`fixture:${fixture.id}`]);
@@ -195,9 +196,11 @@ function TeaStall({ fixture }: { fixture: Fixture }) {
         position={[0, 2.42, 0.62]}
         options={{ font: blackletter, color: '#fafafa', size: 120, background: '#18181b', padding: 18, radius: 14 }}
       />
-      <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[0.85, 0.42, 0.42]} position={[0, 0.42, 0]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false}>
+          <CuboidCollider args={[0.85, 0.42, 0.42]} position={[0, 0.42, 0]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }
@@ -337,9 +340,11 @@ function Tony({ fixture }: { fixture: Fixture }) {
           </mesh>
         </group>
       </group>
-      <RigidBody type="fixed" colliders={false}>
-        <CylinderCollider args={[0.9, 0.3]} position={[0, 0.9, 0]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false}>
+          <CylinderCollider args={[0.9, 0.3]} position={[0, 0.9, 0]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }
@@ -436,9 +441,11 @@ function Hut({ fixture }: { fixture: Fixture }) {
         <planeGeometry args={[0.2, 0.2]} />
         <meshBasicMaterial color="#fde68a" />
       </mesh>
-      <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[0.55, 0.6, 0.5]} position={[0, 0.6, 0]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false}>
+          <CuboidCollider args={[0.55, 0.6, 0.5]} position={[0, 0.6, 0]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }
@@ -507,9 +514,11 @@ function Monolith({ fixture }: { fixture: Fixture }) {
         position={[0, 1.9, 0.16]}
         options={{ font: display, weight: '800', size: 110, color: is2021 ? '#4f46e5' : '#fafafa' }}
       />
-      <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[0.48, 1.25, 0.15]} position={[0, 1.25, 0]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false}>
+          <CuboidCollider args={[0.48, 1.25, 0.15]} position={[0, 1.25, 0]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }
@@ -549,9 +558,11 @@ function Door({ fixture }: { fixture: Fixture }) {
         position={[0, 2.2, 0.21]}
         options={{ font: display, weight: '800', size: 110, color: '#fafafa' }}
       />
-      <RigidBody type="fixed" colliders={false}>
-        <CuboidCollider args={[0.75, 1.2, 0.2]} position={[0, 1.2, 0]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false}>
+          <CuboidCollider args={[0.75, 1.2, 0.2]} position={[0, 1.2, 0]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }
@@ -642,9 +653,11 @@ function FractalTree({ fixture }: { fixture: Fixture }) {
   return (
     <group ref={group} position={[fixture.x, fixture.y, fixture.z]}>
       <instancedMesh ref={mesh} args={[geometry, material, 430]} frustumCulled={false} />
-      <RigidBody type="fixed" colliders={false}>
-        <CylinderCollider args={[0.5, 0.12]} position={[0, 0.5, 0]} />
-      </RigidBody>
+      <Revealed>
+        <RigidBody type="fixed" colliders={false}>
+          <CylinderCollider args={[0.5, 0.12]} position={[0, 0.5, 0]} />
+        </RigidBody>
+      </Revealed>
     </group>
   );
 }
