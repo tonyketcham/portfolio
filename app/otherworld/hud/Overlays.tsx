@@ -217,7 +217,7 @@ export function Fps() {
     if (acc.current.time > 0.5) {
       runtime.fps = Math.round(acc.current.frames / acc.current.time);
       acc.current = { frames: 0, time: 0 };
-      if (ref.current) ref.current.textContent = `${runtime.fps} fps`;
+      if (ref.current) ref.current.textContent = `${runtime.fps} fps · ${runtime.backend}`;
     }
   });
   if (!plugin && !tweak) return null;

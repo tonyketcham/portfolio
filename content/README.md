@@ -1,12 +1,13 @@
 # Content: hanging art in Untitled-1
 
-Everything the world shows comes from three files:
+Everything the world shows comes from four files:
 
 | File | What it holds |
 | --- | --- |
 | `works.ts` | Every project / piece. Adding an entry is all it takes to put it in the world. |
 | `zones.ts` | The island's regions (named like design-file layers). |
 | `profile.ts` | Name, bio lines, contact links (Tony's dialogue + the business card). |
+| `house.ts` | The player-owned house: rooms, built furniture, and which works hang where. |
 
 ## Add a piece
 
@@ -69,3 +70,25 @@ Hand-built set pieces (tea stall, monoliths, the fractal tree…) are positioned
 
 - `draft: true`: the copy was written as a stand-in; the inspector shows a "draft copy" badge.
 - `placeholder: true`: no real media yet.
+
+## The house (`house.ts`)
+
+Rooms sit on a grid of 8×8-tile cells (`at: [column, row]`, row 0 is north) and can be turned
+with `rot` (quarter turns). Doors connect where both neighbours have a door on the shared side.
+
+```ts
+{
+  room: 'portals',                     // garden | parlour | kitchen | dining | workshop | study |
+  at: [1, 0],                          // questhall | portals | chapel | achievements
+  furniture: { 'portal-1': 'marble-portal', centrepiece: 'scrying-pool' },
+  works: { 'portal-1': 'modyfi' },     // what the portal frames and where it takes you
+}
+```
+
+- Hotspot ids per room are in `app/otherworld/house/rooms.ts`; furniture ids are in
+  `app/otherworld/house/furniture/*` (`optionsFor(space)` lists what fits a hotspot).
+- Art hotspots that take `works`: gallery portraits and landscapes, portals, the crystal ball,
+  the display case, the chapel windows, the garden's big tree, decorations.
+- Leave a hotspot out to leave it empty. Visitors can build into it in building mode; their
+  edits are saved in their browser only.
+- `style` picks the house style (wood, stone, whitewash, fremennik, tropical, fancy, frame).

@@ -33,12 +33,12 @@ function CanvasVoid() {
     if (runtime.location === 'house') {
       const L = getHouse().layout;
       voidUniforms.selCenter.value.set(L.ox + L.width / 2, L.oz + L.height / 2);
-      voidUniforms.selHalf.value = Math.max(L.width, L.height) / 2 + 2;
+      voidUniforms.selHalf.value.set(L.width / 2 + 1.5, L.height / 2 + 1.5);
       voidUniforms.origin.value.copy(voidUniforms.selCenter.value);
       voidUniforms.sel.value = gameState().buildMode ? 1 : 0.65;
     } else {
       voidUniforms.selCenter.value.set(0, 0);
-      voidUniforms.selHalf.value = ISLAND_RADIUS + 2.5;
+      voidUniforms.selHalf.value.set(ISLAND_RADIUS + 2.5, ISLAND_RADIUS + 2.5);
       voidUniforms.origin.value.set(0, 0);
       voidUniforms.sel.value = 0.65;
     }

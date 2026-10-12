@@ -35,7 +35,8 @@ export const voidUniforms = {
   /** Strength of the selection bounds drawn around `selCenter`. */
   sel: uniform(1),
   selCenter: uniform(new THREE.Vector2(0, 0)),
-  selHalf: uniform(ISLAND_RADIUS + 2.5),
+  /** Half extents of the bounds: square for the island, the plan's rectangle for the house. */
+  selHalf: uniform(new THREE.Vector2(ISLAND_RADIUS + 2.5, ISLAND_RADIUS + 2.5)),
   /** Where the ripples emanate from (follows the active location). */
   origin: uniform(new THREE.Vector2(0, 0)),
 };
@@ -61,8 +62,9 @@ export function createVoidMaterial() {
     const q = p.sub(V.selCenter);
     const a = abs(q);
     const H = V.selHalf;
-    const onEdge = falloff(abs(max(a.x, a.y).sub(H)), 0.04, 0.09);
-    const along = a.x.greaterThan(a.y).select(q.y, q.x);
+    const e = a.sub(H);
+    const onEdge = falloff(abs(max(e.x, e.y)), 0.04, 0.09);
+    const along = e.x.greaterThan(e.y).select(q.y, q.x);
     const dash = step(0.5, fract(along.mul(0.5).sub(U.uTime.mul(0.25))));
     const corner = abs(a.sub(H));
     const cm = max(corner.x, corner.y);
