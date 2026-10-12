@@ -11,3 +11,5 @@ videos/*
 !videos/*.ts
 public/_next-video
 .vercel
+# dev:all logs
+.dev-logs
