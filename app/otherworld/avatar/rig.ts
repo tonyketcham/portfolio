@@ -22,6 +22,8 @@ import {
   HEAD_OFFSET,
   HEAD_SCALE,
   OUTFITS,
+  TAIL_RINGS,
+  TAIL_SIDES,
   TOE_KNEE,
   buildAvatarGeometry,
   buildSkeleton,
@@ -29,10 +31,12 @@ import {
   capeTexture,
   eyesGeometry,
   glassesGeometry,
+  heartTagGeometry,
   lensGeometry,
   necklaceGeometry,
   printGeometry,
   printTexture,
+  tailGeometry,
   type AvatarLook,
 } from './model';
 import { DIM, gait, newFrame, poseFrame, type PoseFrame, type PoseKind, type PropId, type V3 } from './poses';
@@ -208,6 +212,9 @@ export class Avatar {
   private capePivot = new THREE.Group();
   private capeAngle = 0.07;
   private capeRestPts: THREE.Vector3[] = [];
+  private tail: THREE.Mesh;
+  private tailMaterial = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+  private tag: THREE.Mesh;
   private first = true;
   private stepAcc = 0;
   private props = new Map<PropId, THREE.Mesh>();
@@ -250,7 +257,6 @@ export class Avatar {
     this.necklace = new THREE.Mesh(necklaceGeometry(), this.propMaterial);
     this.print = new THREE.Mesh(printGeometry(), this.printMaterial);
     this.bones[B.chest].add(this.necklace, this.print);
-    this.dress();
 
     // the cape hangs from the back of the shoulders, on the chest bone; its inside is in shade
     this.capeMaterial = new THREE.MeshLambertNodeMaterial({ map: capeTexture(this.look), side: THREE.DoubleSide });
@@ -262,8 +268,16 @@ export class Avatar {
     for (let i = 0; i < pa.count; i++) this.capeRestPts.push(new THREE.Vector3().fromBufferAttribute(pa, i));
     this.capePivot.position.set(0, DIM.shoulder[1] + 0.03, -0.128);
     this.capePivot.add(this.cape);
-    this.bones[B.chest].add(this.capePivot);
-    this.cape.visible = this.look.capeOn;
+    // the Cat cape has a tail, obviously
+    this.tail = new THREE.Mesh(tailGeometry(this.look), this.tailMaterial);
+    this.tail.castShadow = true;
+    this.tail.frustumCulled = false;
+    this.capePivot.add(this.tail);
+    // it ties at the throat with the cat's red collar and heart tag
+    this.tag = new THREE.Mesh(heartTagGeometry(), this.propMaterial);
+    this.tag.castShadow = true;
+    this.bones[B.chest].add(this.capePivot, this.tag);
+    this.dress();
 
     for (const id of ['hammer', 'saw', 'book', 'cup'] as PropId[]) {
       const p = new THREE.Mesh(propGeometry(id), this.propMaterial);
@@ -280,6 +294,7 @@ export class Avatar {
     this.glasses.visible = this.look.glasses;
     this.necklace.visible = !!O.necklace;
     this.print.visible = O.print === 'croissant';
+    this.cape.visible = this.tail.visible = this.tag.visible = this.look.capeOn;
     this.material.pattern.type.value = O.pattern === 'polka' ? 1 : O.pattern === 'stripes' ? 2 : 0;
     this.material.pattern.tint.value.set(O.patternColor);
   }
@@ -291,12 +306,13 @@ export class Avatar {
     this.look = next;
     this.mesh.geometry.dispose();
     this.mesh.geometry = buildAvatarGeometry(this.look);
-    this.cape.visible = this.look.capeOn;
     this.dress();
     if (capeChanged) {
       this.capeMaterial.map?.dispose();
       this.capeMaterial.map = capeTexture(this.look);
       this.capeMaterial.needsUpdate = true;
+      this.tail.geometry.dispose();
+      this.tail.geometry = tailGeometry(this.look);
     }
   }
 
@@ -447,15 +463,69 @@ export class Avatar {
     }
     pa.needsUpdate = true;
     this.cape.geometry.computeVertexNormals();
+    // the tail hangs from the middle of the hem, on the outside
+    const hemI = CAPE_ROWS * cols + CAPE_COLS / 2;
+    const hem = tA.fromBufferAttribute(pa, hemI);
+    const above = tB.fromBufferAttribute(pa, hemI - cols);
+    const hang = Math.atan2(-(hem.z - above.z), -(hem.y - above.y));
+    this.updateTail(t, s, run, hem.add(tDir.set(0, 0.05, -0.012)), hang);
+  }
+
+  /**
+   * The cat's tail: it carries on from the hem, curls up into a question mark,
+   * swishes side to side, and streams out behind when you run.
+   */
+  private updateTail(time: number, s: number, run: number, base: THREE.Vector3, hang: number) {
+    const g = this.tail.geometry;
+    const pa = g.attributes.position as THREE.BufferAttribute;
+    const na = g.attributes.normal as THREE.BufferAttribute;
+    const L = 0.62;
+    const seg = L / (TAIL_RINGS - 1);
+    const pts: THREE.Vector3[] = [base.clone()];
+    for (let i = 1; i < TAIL_RINGS; i++) {
+      const t = i / (TAIL_RINGS - 1);
+      const curl = 2.5 * Math.pow(t, 1.6) * (1 - run * 0.55);
+      const a = hang + 0.15 + curl + s * 0.5 * t;
+      const b = Math.sin(time * 2.2 - t * 3.4) * (0.32 + 0.2 * s) * t + Math.sin(time * 0.6) * 0.18 * t;
+      const dir = tDir.set(-Math.sin(a) * Math.sin(b), -Math.cos(a), -Math.sin(a) * Math.cos(b));
+      pts.push(pts[i - 1].clone().addScaledVector(dir, seg));
+    }
+    const T = new THREE.Vector3();
+    const N = new THREE.Vector3();
+    const Bn = new THREE.Vector3();
+    for (let i = 0; i < TAIL_RINGS; i++) {
+      const t = i / (TAIL_RINGS - 1);
+      T.subVectors(pts[Math.min(TAIL_RINGS - 1, i + 1)], pts[Math.max(0, i - 1)]).normalize();
+      N.set(1, 0, 0).addScaledVector(T, -T.x).normalize();
+      Bn.crossVectors(T, N);
+      const r = 0.04 * (1 - 0.55 * t) * (1 + 0.18 * Math.sin(t * Math.PI));
+      for (let k = 0; k < TAIL_SIDES; k++) {
+        const th = (k / TAIL_SIDES) * Math.PI * 2;
+        const nx = N.x * Math.cos(th) + Bn.x * Math.sin(th);
+        const ny = N.y * Math.cos(th) + Bn.y * Math.sin(th);
+        const nz = N.z * Math.cos(th) + Bn.z * Math.sin(th);
+        const vi = i * TAIL_SIDES + k;
+        pa.setXYZ(vi, pts[i].x + nx * r, pts[i].y + ny * r, pts[i].z + nz * r);
+        na.setXYZ(vi, nx, ny, nz);
+      }
+    }
+    const tip = pts[TAIL_RINGS - 1].clone().addScaledVector(T, 0.02);
+    pa.setXYZ(TAIL_RINGS * TAIL_SIDES, tip.x, tip.y, tip.z);
+    na.setXYZ(TAIL_RINGS * TAIL_SIDES, T.x, T.y, T.z);
+    pa.needsUpdate = true;
+    na.needsUpdate = true;
   }
 
   dispose() {
+    this.tail.geometry.dispose();
+    this.tailMaterial.dispose();
     this.mesh.geometry.dispose();
     this.eyes.geometry.dispose();
     this.cape.geometry.dispose();
     this.capeMaterial.map?.dispose();
     for (const p of this.props.values()) p.geometry.dispose();
     this.necklace.geometry.dispose();
+    this.tag.geometry.dispose();
     this.print.geometry.dispose();
     this.printMaterial.map?.dispose();
     for (const o of this.glasses.children) (o as THREE.Mesh).geometry.dispose();

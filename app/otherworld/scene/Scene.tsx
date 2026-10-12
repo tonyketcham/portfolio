@@ -14,6 +14,7 @@ import { Flora } from './Flora';
 import { House } from './House';
 import { Interaction } from './Interaction';
 import { Ambient, Particles } from './Particles';
+import { PetCat } from './PetCat';
 import { Player } from './Player';
 import { PostStack } from './PostStack';
 import { Critters, Drops, Letters } from './Props';
@@ -71,6 +72,9 @@ export function Scene() {
           <PhysicsReady />
           <Safe name="house">
             <House />
+          </Safe>
+          <Safe name="cat">
+            <PetCat />
           </Safe>
           <Island>
             <Safe name="terrain">

@@ -79,9 +79,22 @@ export const PANELS = {
     cape: true,
     skin: '#e6b896',
     hair: '#ab8656',
-    capeColor: '#2557d6',
-    capeTrim: '#f4f4f5',
+    capeColor: '#80838b',
+    capeTrim: '#efece6',
     caffeineDrain: [1, 0, 4],
+  },
+  /** Tony's cat (scene/PetCat.tsx, pet/*). It holds frames with Player.animFps, like you. */
+  Cat: {
+    enabled: true,
+    scale: [1.15, 0.5, 2.5],
+    /** Tiles per second at a walk; it trots over to you a bit faster. */
+    speed: [1.3, 0.4, 4],
+    wanderiness: [0.5, 0, 1],
+    idleMin: [4, 1, 30],
+    idleMax: [12, 2, 60],
+    napChance: [0.25, 0, 1],
+    visitChance: [0.35, 0, 1],
+    meowChance: [0.025, 0, 0.3],
   },
   Physics: {
     gravity: [-22, -60, 0],

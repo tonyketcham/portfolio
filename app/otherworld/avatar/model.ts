@@ -5,16 +5,19 @@
  *
  * Built procedurally as one continuous skinned mesh (no seams at the elbows
  * or knees) plus a few attached pieces: eyes that blink, glasses, a chest
- * print, a necklace, and a cloth cape with a painted emblem. Everything is
- * lofted from cross-sections around the bones in the rest pose (standing
- * straight, arms hanging) and skinned with soft weights across the joints.
+ * print, a necklace, and a cloth cape with a painted emblem, a tail and a
+ * collar tag. Everything is lofted from cross-sections around the bones in
+ * the rest pose (standing straight, arms hanging) and skinned with soft
+ * weights across the joints.
  * Smooth shading, hard colour bands where the clothes change, baked
  * occlusion in the vertex colours, and procedural shirt patterns (polka
  * dots, embroidered stripes) evaluated in the shader.
  */
 import * as THREE from 'three/webgpu';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Kit } from '../house/kit';
+import { CAT } from '@/content/cat';
+import { Kit, type V3 } from '../house/kit';
+import { mulberry32 } from '../lib/random';
 import { DIM } from './poses';
 
 export type HatId = 'none' | 'pointer';
@@ -37,8 +40,8 @@ export const TOE_KNEE: AvatarLook = {
   hair: '#ab8656',
   outfit: 'croissant',
   glasses: true,
-  cape: '#2557d6',
-  capeTrim: '#f4f4f5',
+  cape: '#80838b',
+  capeTrim: '#efece6',
   capeOn: true,
   hat: 'none',
 };
@@ -1190,7 +1193,14 @@ export function capeGeometry() {
   return g;
 }
 
-/** Paint the cape: colour, trim, and the emblem (a pointer in a roundel) on the back. */
+/**
+ * The Cat cape: the skillcape if Cats were a skill, and the cat were Tony's.
+ * Grey-and-white bicolour cloth (the grey is `L.cape`, the white patches and
+ * trim `L.capeTrim`), a hem of grey paw prints, and the cat's face in the
+ * roundel on the back: white face, grey cap over the ears, the lopsided
+ * smudge down the nose, green-yellow eyes, red collar and heart tag. (The
+ * tail and the tag at the throat are real; see the rig.)
+ */
 export function capeTexture(L: AvatarLook) {
   const W = 128;
   const H = 256;
@@ -1199,61 +1209,343 @@ export function capeTexture(L: AvatarLook) {
   cv.height = H;
   const g = cv.getContext('2d')!;
   const hex = (c: THREE.Color) => '#' + c.getHexString();
+  const grey = (k: number) => hex(col(L.cape, k));
+  const white = L.capeTrim;
+  const ink = grey(0.16);
+  const rand = mulberry32(99);
+  // seen from behind, the canvas comes out mirrored: draw everything as it will look
+  g.setTransform(-1, 0, 0, 1, W, 0);
+
   const grad = g.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, hex(col(L.cape, 1.08)));
-  grad.addColorStop(1, hex(col(L.cape, 0.82)));
+  grad.addColorStop(0, grey(1.06));
+  grad.addColorStop(1, grey(0.86));
   g.fillStyle = grad;
   g.fillRect(0, 0, W, H);
-  g.globalAlpha = 0.06;
-  for (let y = 0; y < H; y += 2) {
-    g.fillStyle = y % 4 ? '#000' : '#fff';
-    g.fillRect(0, y, W, 1);
+
+  // white bicolour patches, soft-edged and a little lopsided: white rising from
+  // the hem and up the right flank, a splash on the left, one on the shoulder
+  const blob = (cx: number, cy: number, rx: number, ry: number, tilt: number, seed: number, grow: number) => {
+    g.beginPath();
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      const r = 1 + 0.16 * Math.sin(a * 2 + seed) + 0.09 * Math.sin(a * 3 + seed * 2.3) + 0.05 * Math.sin(a * 5 + seed * 0.7);
+      const x = Math.cos(a) * (rx * r + grow);
+      const y = Math.sin(a) * (ry * r + grow);
+      g.lineTo(cx + x * Math.cos(tilt) - y * Math.sin(tilt), cy + x * Math.sin(tilt) + y * Math.cos(tilt));
+    }
+    g.closePath();
+    g.fill();
+  };
+  const patches = (grow: number) => {
+    g.beginPath();
+    g.moveTo(0, H);
+    for (let x = 0; x <= W; x += 4) g.lineTo(x, 221 - grow + Math.sin(x * 0.09 + 1) * 4 + Math.sin(x * 0.23) * 2);
+    g.lineTo(W, H);
+    g.fill();
+    blob(106, 200, 21, 38, -0.2, 1.2, grow);
+    blob(32, 212, 15, 17, 0.4, 3.1, grow);
+    blob(13, 152, 9, 16, 0.25, 5, grow);
+    blob(100, 36, 9, 15, 0.6, 4.1, grow);
+  };
+  for (const [grow, k] of [
+    [3, 0.35],
+    [1.5, 0.7],
+    [0, 1],
+  ]) {
+    g.fillStyle = hex(col(L.cape).lerp(col(L.capeTrim), k));
+    patches(grow);
+  }
+
+  // fur: sparse pairs of short strokes, parting from the spine and flowing
+  // down and out (chunky, so they don't shimmer)
+  g.globalAlpha = 0.12;
+  for (let i = 0; i < 56; i++) {
+    const x = 12 + rand() * (W - 24);
+    const y = 4 + rand() * (H - 40);
+    g.fillStyle = i % 4 ? grey(0.5) : '#ffffff';
+    g.save();
+    g.translate(x, y);
+    g.rotate(((W / 2 - x) / W) * 1.1);
+    g.fillRect(-1, 0, 2, 6);
+    g.fillRect(2, 2, 2, 4);
+    g.restore();
   }
   g.globalAlpha = 1;
-  g.fillStyle = L.capeTrim;
+
+  // trim: white sides and hem, a thin grey line inside, grey paw prints along the hem
+  g.fillStyle = white;
   g.fillRect(0, 0, 7, H);
   g.fillRect(W - 7, 0, 7, H);
-  g.fillRect(0, H - 16, W, 16);
-  g.fillStyle = hex(col(L.cape, 0.6));
-  g.fillRect(9, 0, 2, H - 18);
-  g.fillRect(W - 11, 0, 2, H - 18);
-  g.fillRect(9, H - 20, W - 18, 2);
-  // emblem: a roundel with a pointer, upper back (mirrored, it's seen from behind)
-  const cx = W / 2;
-  const cy = 78;
-  g.fillStyle = hex(col(L.cape, 0.55));
-  g.beginPath();
-  g.arc(cx, cy + 2, 27, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = L.capeTrim;
-  g.beginPath();
-  g.arc(cx, cy, 26, 0, Math.PI * 2);
-  g.fill();
-  const k = 2.3;
+  g.fillRect(0, H - 20, W, 20);
+  g.fillStyle = grey(0.55);
+  g.fillRect(9, 0, 2, H - 22);
+  g.fillRect(W - 11, 0, 2, H - 22);
+  g.fillRect(9, H - 24, W - 18, 2);
+  const paw = (x: number, y: number) => {
+    g.beginPath();
+    g.ellipse(x, y + 2, 3.2, 2.6, 0, 0, Math.PI * 2);
+    g.fill();
+    for (const [dx, dy] of [
+      [-3.6, -2.2],
+      [-1.3, -4],
+      [1.3, -4],
+      [3.6, -2.2],
+    ]) {
+      g.beginPath();
+      g.arc(x + dx, y + dy, 1.15, 0, Math.PI * 2);
+      g.fill();
+    }
+  };
+  g.fillStyle = grey(0.85);
+  for (let k = 0; k < 5; k++) paw(18 + k * 23, H - 9 - (k % 2) * 2);
+
+  // the roundel: the cat's face, low enough to clear the hair. The cloth is
+  // wider per texel than it is tall here, so stretch to keep the roundel round.
   g.save();
-  g.translate(cx + 1, cy - 1);
-  g.scale(-1, 1);
+  g.translate(W / 2, 116);
+  g.scale(1.1, 1);
+  const disc = (r: number, fill: string, dy = 0) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    g.arc(0, dy, r, 0, Math.PI * 2);
+    g.fill();
+  };
+  disc(37, grey(0.42), 1.5);
+  disc(35, white);
+  disc(31, grey(0.42));
+  disc(29.5, grey(0.62));
   g.beginPath();
-  const arrow: [number, number][] = [
-    [0, 0],
-    [0, 16],
-    [4, 12.5],
-    [7, 19],
-    [9.6, 18],
-    [6.6, 11.6],
-    [11.5, 11.5],
-  ];
-  arrow.forEach(([x, y], i) => (i ? g.lineTo((x - 5.2) * k, (y - 10) * k) : g.moveTo((x - 5.2) * k, (y - 10) * k)));
+  g.arc(0, 0, 29.5, 0, Math.PI * 2);
+  g.clip();
+
+  const head = () => {
+    g.beginPath();
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2;
+      // fluffy cheeks
+      const tuft = Math.sin(a) > 0.15 && Math.abs(Math.cos(a)) > 0.55 ? (i % 2 ? 1.13 : 1.02) : 1;
+      g.lineTo(Math.cos(a) * 22 * tuft, 3 + Math.sin(a) * 16.5 * tuft);
+    }
+    g.closePath();
+  };
+  const ear = (s: number) => {
+    g.beginPath();
+    g.moveTo(s * 21, -1);
+    g.lineTo(s * 18.5, -27);
+    g.lineTo(s * 5, -11);
+    g.closePath();
+  };
+  const tri = (pts: number[], fill: string) => {
+    g.fillStyle = fill;
+    g.beginPath();
+    for (let i = 0; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]);
+    g.closePath();
+    g.fill();
+  };
+  // the white chest under the chin
+  g.fillStyle = white;
+  g.strokeStyle = ink;
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(-14, 12);
+  g.lineTo(14, 12);
+  g.lineTo(21, 34);
+  g.lineTo(-21, 34);
   g.closePath();
-  g.lineJoin = 'round';
+  g.fill();
+  g.stroke();
+  // whiskers: white against the dark field here, drawn again dark over the face below
+  const whiskers = () => {
+    g.beginPath();
+    for (const s of [-1, 1])
+      for (const d of [-1.5, 1.5, 4.5]) {
+        g.moveTo(s * 6, 11 + d * 0.3);
+        g.lineTo(s * 34, 7 + d * 2.2);
+      }
+    g.stroke();
+  };
+  g.strokeStyle = white;
+  g.lineWidth = 1.3;
+  whiskers();
+  // outline the whole silhouette first, so the ears join the head without a seam
+  g.strokeStyle = ink;
+  g.lineWidth = 3.2;
+  for (const s of [-1, 1]) {
+    ear(s);
+    g.stroke();
+  }
+  head();
+  g.stroke();
+  for (const s of [-1, 1]) {
+    g.fillStyle = grey(1);
+    ear(s);
+    g.fill();
+    tri([s * 17.8, -4.5, s * 17.2, -21.5, s * 8.4, -11], CAT.innerEar);
+    tri([s * 18.5, -27, s * 19.1, -20.5, s * 15.2, -23], CAT.tail);
+  }
+  g.fillStyle = white;
+  head();
+  g.fill();
+  // the grey cap down to just above the eyes, and the smudge that drips from
+  // it down the cat's left of the nose bridge (as on the pet), into the corner
+  // of that eye
+  g.save();
+  head();
+  g.clip();
+  g.fillStyle = grey(1);
+  g.beginPath();
+  for (const [x, y] of [
+    [26, -30],
+    [-26, -30],
+    [-26, 2],
+    [-18, -1],
+    [-12, -4.5],
+    [-6.5, -5],
+    [-2, -6],
+    [-0.8, -2],
+    [0.3, 2.5],
+    [1.2, 7.4],
+    [3.6, 8],
+    [5.6, 5],
+    [6.6, 1],
+    [7.5, -3.5],
+    [12, -4.6],
+    [18, -1.5],
+    [26, 2],
+  ])
+    g.lineTo(x, y);
+  g.closePath();
+  g.fill();
+  g.restore();
+  // green-yellow eyes with slit pupils
+  for (const s of [-1, 1]) {
+    g.fillStyle = CAT.eyes;
+    g.strokeStyle = ink;
+    g.lineWidth = 1.3;
+    g.beginPath();
+    g.ellipse(s * 10, 2.5, 4.6, 3.7, -s * 0.18, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.fillStyle = CAT.pupil;
+    g.beginPath();
+    g.ellipse(s * 10, 2.5, 1, 3.3, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#ffffff';
+    g.fillRect(s * 10 - 2.6, 0.3, 1.4, 1.4);
+  }
+  // black nose, a small mouth
+  tri([-3.2, 8.6, 3.2, 8.6, 0, 11.8], CAT.nose);
+  g.strokeStyle = ink;
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(0, 11.5);
+  g.lineTo(0, 13.2);
+  g.quadraticCurveTo(-1.8, 15, -3.6, 13.6);
+  g.moveTo(0, 13.2);
+  g.quadraticCurveTo(1.8, 15, 3.6, 13.6);
+  g.stroke();
+  g.save();
+  head();
+  g.clip();
+  g.globalAlpha = 0.75;
+  g.lineWidth = 0.9;
+  whiskers();
+  g.restore();
+  // the collar and the heart, under the chin
+  g.strokeStyle = CAT.collar;
   g.lineWidth = 3;
-  g.strokeStyle = L.capeTrim;
-  g.fillStyle = '#0c0a09';
+  g.beginPath();
+  g.moveTo(-15, 17);
+  g.quadraticCurveTo(0, 24, 15, 17);
+  g.stroke();
+  g.fillStyle = CAT.tag;
+  g.strokeStyle = ink;
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(0, 24.5);
+  g.bezierCurveTo(-1.5, 22, -5.5, 22.2, -5, 25.5);
+  g.bezierCurveTo(-4.6, 28, -1.5, 29.5, 0, 31);
+  g.bezierCurveTo(1.5, 29.5, 4.6, 28, 5, 25.5);
+  g.bezierCurveTo(5.5, 22.2, 1.5, 22, 0, 24.5);
   g.fill();
   g.stroke();
   g.restore();
+
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   return tex;
+}
+
+/** Tail: rings along a curve, rebuilt into the same buffer every frame by the rig. */
+export const TAIL_RINGS = 16;
+export const TAIL_SIDES = 7;
+/** Solid grey: the cape's grey at the root, darkening along it into the cat's dark grey. */
+export function tailGeometry(L: AvatarLook) {
+  const n = TAIL_RINGS * TAIL_SIDES + 1;
+  const pos = new Float32Array(n * 3);
+  const nrm = new Float32Array(n * 3);
+  const cl = new Float32Array(n * 3);
+  const base = new THREE.Color(L.cape);
+  const dark = new THREE.Color(CAT.tail);
+  const tint = new THREE.Color();
+  for (let i = 0; i < TAIL_RINGS; i++) {
+    tint.lerpColors(base, dark, THREE.MathUtils.smoothstep(i / (TAIL_RINGS - 1), 0, 0.5));
+    for (let k = 0; k < TAIL_SIDES; k++) tint.toArray(cl, (i * TAIL_SIDES + k) * 3);
+  }
+  tint.copy(dark).multiplyScalar(0.85).toArray(cl, (n - 1) * 3);
+  const idx: number[] = [];
+  for (let i = 0; i < TAIL_RINGS - 1; i++)
+    for (let k = 0; k < TAIL_SIDES; k++) {
+      const a = i * TAIL_SIDES + k;
+      const b = i * TAIL_SIDES + ((k + 1) % TAIL_SIDES);
+      const c = a + TAIL_SIDES;
+      const d = b + TAIL_SIDES;
+      idx.push(a, b, c, b, d, c);
+    }
+  const tip = n - 1;
+  const last = (TAIL_RINGS - 1) * TAIL_SIDES;
+  for (let k = 0; k < TAIL_SIDES; k++) idx.push(last + k, last + ((k + 1) % TAIL_SIDES), tip);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(cl, 3));
+  g.setIndex(idx);
+  return g;
+}
+
+/**
+ * Where the cape ties at the throat: the cat's red collar as the cape's cord,
+ * and its tag on a little ring, a plain puffy red heart about 4.5 cm across
+ * (chest-bone space).
+ */
+export function heartTagGeometry() {
+  const k = new Kit(31);
+  k.push([0, -REST.pelvis.y, 0]);
+  // the collar: from one top corner of the cape, over the shoulder and round
+  // the front of the neck to the other, clear of every shirt and jacket collar
+  const half: V3[] = [
+    [0.16, 1.362, -0.068],
+    [0.148, 1.376, -0.045],
+    [0.13, 1.383, -0.005],
+    [0.105, 1.384, 0.045],
+    [0.062, 1.382, 0.088],
+  ];
+  const cord = [...half, [0, 1.38, 0.106] as V3, ...half.map(([x, y, z]): V3 => [-x, y, z]).reverse()];
+  k.tube(cord, 0.004, CAT.collar, { seg: 40, radial: 5, jitter: 0.03 });
+  // a little split ring, and the heart: the classic heart curve, extruded and bevelled
+  // puffy, tipped back to lie against the chest
+  k.torus(0.0058, 0.0013, '#d9dde2', [0, 1.3728, 0.116], 4, 10, Math.PI * 2, { rot: [0, Math.PI / 2, 0], jitter: 0 });
+  const s = 0.00122;
+  const heart = new THREE.Shape(
+    Array.from({ length: 20 }, (_, i) => {
+      const t = (i / 20) * Math.PI * 2;
+      return new THREE.Vector2(16 * Math.sin(t) ** 3 * s, (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) * s);
+    })
+  );
+  const puffy = new THREE.ExtrudeGeometry(heart, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.0035, bevelSegments: 2 });
+  puffy.translate(0, 0, -0.002);
+  k.add(puffy, CAT.tag, [0, 1.3615, 0.1215], { rot: [-0.15, 0, 0], jitter: 0.04 });
+  k.pop();
+  return k.build(false)!;
 }

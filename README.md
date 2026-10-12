@@ -7,14 +7,20 @@ infinite dot-grid canvas, with dotted hotspots where the furniture goes. Zoom ou
 **Present ▶**, or double-tap) and the plan builds itself: walls rise off the print, furniture
 hammers in with puffs of sawdust, the editor chrome slides away, and you land in the garden
 courtyard at the middle of the house as Toe Knee (Tony, said fast): an old-school player model of
-Tony, long wavy hair, round wire glasses, the croissant shirt, and a skillcape with a mouse cursor
-for an emblem.
+Tony, long wavy hair, round wire glasses, the croissant shirt, and the Cat cape: the skillcape for
+99 Cats, grey and white like Tony's cat, with the cat's face on the emblem, a red heart tag at the
+collar and a tail.
 
 The house is an Old School RuneScape player-owned house. Room types, hotspot names, the furniture
 tiers and their level / material requirements follow the POH data in RuneLite's open-source
 client, and every piece has a design-tool twist: a Bézier chair with its handles showing, a
 rug with a transparency checkerboard, a fireplace that burns a gradient map, a larder full of
 Perlin bread, portals that frame the work, a cat basket, a node-graph workbench.
+
+Tony's cat lives here too (`app/otherworld/pet`): a grey-and-white bicolour with a smudge down
+the nose, walking the house on the same tile grid as you. It wanders, sits, loafs, grooms,
+stretches, naps in the kitchen basket, comes over to weave round your legs and meows when it
+feels like it. Right-click it to Pet (Cats xp), Talk-to or Pick-up. It declines.
 
 Every room opens onto the garden courtyard: stepping-stone paths from the four doors loop round the
 exit portal, the lawn parts around you as you walk through it, and the beds are planted with
@@ -37,6 +43,7 @@ The house portal by spawn takes you home.
   `::bow`, `::yawn`. The DialKit Player panel is the make-over mage: outfit (croissant shirt,
   polka dots and the chore jacket, embroidered stripes, or a fresh account), glasses, skin, hair,
   cape, the pointer helm, and `animFps` to hold frames like the game without animation smoothing.
+  The Cat panel tunes the cat: speed, how much it wanders, idle times, nap and visit chances.
 - **Long-press / right-click** anything for the "Choose Option" menu (Sit-on, Warm-hands,
   Search, Inspect, Examine, Steal-from…).
 - **Building mode** (hammer button, the **B** key, or `::build`): empty hotspots show as ghosts.
@@ -51,8 +58,8 @@ The house portal by spawn takes you home.
 - **Layers tab** is the island as a design file: hide or lock any layer.
 - **Text tool (T)** drops physical 5×7 voxel letters. **Move tool (V)** lets you grab and throw
   props. **⌘Z** rewinds the physics with a VHS pass.
-- Skills (with the classic XP curve), inventory, quests, a tea stall to steal from, Tony to talk
-  to, an amanita ring that makes the pixels breathe, bezier-handle butterflies, a fractal tree
+- Skills (with the classic XP curve; Cats starts at 99), inventory, quests, a tea stall to steal
+  from, Tony to talk to, an amanita ring that makes the pixels breathe, bezier-handle butterflies, a fractal tree
   you can water, and a curry pot.
 - Chat commands: `::help`, `::dial`, `::target <panel>`, `::home`, `::island`, `::build`,
   `::tp <zone|house>`, `::tea`, `::type <text>`, `::intro`, `::classic`.
@@ -76,7 +83,7 @@ piece in the house (on a wall, in a portal, in the chapel windows), add its slug
 ## Tuning it: DialKit 2
 
 Every tunable lives in `app/otherworld/debug/tweaks.ts` as DialKit panel configs: World, House,
-Modyfi stack, Camera, Player, Physics, Artboards, Flora, HUD, Intro, Debug. The House panel
+Modyfi stack, Camera, Player, Cat, Physics, Artboards, Flora, HUD, Intro, Debug. The House panel
 covers the style, the wall cutaway, lamps and interior light; Modyfi stack includes the pixel
 outline and crease lines. The panel shows in dev
 automatically, in any build with `?dial`, or by typing `::dial` in chat.
@@ -100,12 +107,13 @@ Useful URLs: `/?intro` forces the intro, `/?skip` skips it, `/?dial` shows DialK
 ### Map of the code
 
 ```
-content/            works, zones, profile, house: the only files you need to touch to add art
+content/            works, zones, profile, house, cat: the only files you need to touch to add art
 app/otherworld/
   world/            island generation, places (island / house), A* pathfinding (pure TS)
   house/            the POH: room catalog, layout, walls + floors, garden courtyard, furniture
                     kit + catalog, construction, furniture actions
   avatar/           the player rig (procedural IK) and its pose library
+  pet/              the cat: model + poses, behaviour (wander, nap, visit), right-click verbs
   shaders/          TSL materials, particles and the post pipeline (renderable headless)
   scene/            r3f components: house, terrain, player, artboards, cables, flora, fixtures,
                     physics props, intro + travel directors

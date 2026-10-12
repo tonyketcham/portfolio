@@ -140,6 +140,7 @@ function openMenuAt(x: number, y: number) {
 function dialPanelFor(it: Interactable | undefined): string {
   if (!it) return 'World';
   if (it.id === 'player') return 'Player';
+  if (it.id.startsWith('pet:')) return 'Cat';
   if (it.id.startsWith('furn:') || it.id.startsWith('hotspot:')) return 'House';
   if (it.id.startsWith('work:')) return 'Artboards';
   if (it.id.startsWith('critter:') || it.id.startsWith('letter:') || it.id.startsWith('drop:') || it.id.startsWith('shroom:'))

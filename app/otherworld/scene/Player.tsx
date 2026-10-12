@@ -183,7 +183,7 @@ export function Player() {
       name: 'Toe Knee',
       tone: 'player',
       object: () => avatar.group,
-      examine: "That's you, Toe Knee. Tony, if you say it fast. Knees and toes included.",
+      examine: "That's you, Toe Knee. Tony, if you say it fast. The Cat cape means 99 Cats; the tail means it.",
       actions: EMOTES.map((e) => ({
         verb: e.verb,
         run: () => {

@@ -47,6 +47,7 @@ function Panels() {
   usePanel('World');
   usePanel('Camera');
   usePanel('Player');
+  usePanel('Cat');
   usePanel('Physics');
   usePanel('Artboards');
   usePanel('Flora');

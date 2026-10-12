@@ -2,7 +2,7 @@
 import * as THREE from 'three/webgpu';
 import { TEAS } from '../../state/items';
 import { UI, WOOD, type Kit } from '../kit';
-import { fireMaterial, glowMaterial } from '../materials';
+import { fireMaterial } from '../materials';
 import { canvasTexture, legs4, workArt } from './common';
 import type { BuildCtx, Extra, FurnitureDef } from './types';
 
@@ -315,6 +315,10 @@ const pixelBarrel: FurnitureDef = {
 };
 
 // ── cat basket ───────────────────────────────────────────────────────────────
+/**
+ * Just the basket and its cushion: the cat (scene/PetCat.tsx) curls up in it
+ * when it naps, and brings its own z's.
+ */
 const catBasket: FurnitureDef = {
   id: 'cat-basket',
   space: 'cat-basket',
@@ -322,23 +326,12 @@ const catBasket: FurnitureDef = {
   level: 41,
   xp: 58,
   materials: [['Plank', 2], ['Wool', 2]],
-  examine: 'A cat lives here. It is asleep. It has been asleep since the last deploy.',
+  examine: 'A wicker basket with a red cushion. The dent in the middle is exactly cat-shaped.',
   actions: [{ verb: 'Pet', id: 'pet-cat' }],
   model: (k) => {
     k.lathe([[0.0, 0], [0.34, 0], [0.38, 0.18], [0.33, 0.2], [0.29, 0.06], [0.0, 0.06]], '#a16207', [0, 0, 0], 12);
-    k.cyl(0.29, 0.29, 0.06, '#dc2626', [0, 0.06, 0], 12);
-    // curled cat
-    k.sphere(0.2, '#27272a', [0, 0.2, 0], 8, 6, { rot: [0, 0, 0] });
-    k.sphere(0.12, '#27272a', [0.16, 0.22, 0.08], 8, 6);
-    k.cone(0.04, 0.08, '#27272a', [0.2, 0.3, 0.1], 4);
-    k.cone(0.04, 0.08, '#27272a', [0.12, 0.3, 0.13], 4);
-    k.tube([[-0.15, 0.14, 0.1], [-0.05, 0.12, 0.25], [0.12, 0.13, 0.22]], 0.035, '#27272a', { seg: 8 });
-  },
-  extras: () => {
-    // a slow sleep bubble: a tiny "z" as a glow cube that rises
-    const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.01), glowMaterial('#e0f2fe'));
-    m.position.set(0.22, 0.5, 0.12);
-    return [{ object: m, tick: (t) => { const u = (t * 0.4) % 1; m.position.y = 0.45 + u * 0.4; m.scale.setScalar(0.6 + u); m.visible = u < 0.85; } }];
+    // the cushion, dipped in the middle where someone sleeps
+    k.lathe([[0.0, 0.0], [0.29, 0.0], [0.29, 0.04], [0.24, 0.05], [0.14, 0.03], [0.0, 0.025]], '#dc2626', [0, 0.06, 0], 12);
   },
 };
 

@@ -2,11 +2,13 @@
  * What furniture does when you use it. Each FurnitureDef lists action ids;
  * this maps them to verbs that touch the rest of the game.
  */
+import { CAT } from '@/content/cat';
 import { profile } from '@/content/profile';
 import { works } from '@/content/works';
 import { giveTea, inspectWork, mushroomMode, travel, travelToWork } from '../state/actions';
 import { EFFECT_PRESETS } from '../state/effects';
 import type { PoseKind } from '../avatar/poses';
+import { catInBasket, petCat } from '../pet/actions';
 import { emit, sfx, type GameEvent } from '../state/events';
 import { playPose, runtime, sayOverhead } from '../state/runtime';
 import { gameState } from '../state/store';
@@ -125,9 +127,12 @@ export function runFurnitureAction(id: string, piece: PieceInstance) {
       if (g.addItem({ id: 'pixel' })) g.say('You take a loose pixel. It is warm.');
       break;
     case 'pet-cat':
-      act('pet', piece);
-      g.say('You pet the cat. It purrs at 60fps.');
-      burst('hearts', piece, 0.6, 6);
+      // the cat (scene/PetCat.tsx) naps here; pet it if it's in, otherwise pat the cushion
+      if (catInBasket()) petCat();
+      else {
+        act('pet', piece);
+        g.say(`The basket is empty. The cushion is still warm; ${CAT.name} can't be far.`);
+      }
       break;
     case 'ring-bell':
       act('pull', piece);

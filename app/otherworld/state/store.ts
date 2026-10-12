@@ -9,7 +9,7 @@ import type { HouseStyleId } from '../house/types';
 import { EFFECT_PRESETS, effectById, type EffectId, type EffectLayer } from './effects';
 import { sfx } from './events';
 import { ITEMS, type ItemStack } from './items';
-import { SKILLS, levelForXp, skillById } from './skills';
+import { SKILLS, XP_TABLE, levelForXp, skillById } from './skills';
 
 /** localStorage that never throws (private windows, blocked storage, previews). */
 const safeStorage: StateStorage = {
@@ -195,7 +195,8 @@ let dropId = 1;
 let destSeq = 1;
 let levelSeq = 1;
 
-const emptySkills = () => Object.fromEntries(SKILLS.map((s) => [s.id, 0])) as Record<SkillId, number>;
+/** Everyone starts at 99 Cats. It's what the cape is for. */
+const emptySkills = () => Object.fromEntries(SKILLS.map((s) => [s.id, s.id === 'cats' ? XP_TABLE[99] : 0])) as Record<SkillId, number>;
 const cloneStack = (name: string) => EFFECT_PRESETS[name].stack.map((l) => ({ ...l }));
 
 export const INVENTORY_SIZE = 28;
