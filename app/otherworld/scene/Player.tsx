@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Toe Knee, the player: an old-school player model in a cursor skillcape (see ../avatar/rig). This
+ * Toe Knee (Tony), the player: an old-school player model in a cursor skillcape (see ../avatar/rig). This
  * component moves it on the tile grid at old-school tick speed, plays poses
  * when it uses furniture (sitting on chairs, hammering, praying…), handles
  * cut/paste teleports and the intro drop, and keeps a kinematic body so it
@@ -183,7 +183,7 @@ export function Player() {
       name: 'Toe Knee',
       tone: 'player',
       object: () => avatar.group,
-      examine: "That's you, Toe Knee. Knees and toes included. The cape says you've maxed something.",
+      examine: "That's you, Toe Knee. Tony, if you say it fast. Knees and toes included.",
       actions: EMOTES.map((e) => ({
         verb: e.verb,
         run: () => {
@@ -406,15 +406,14 @@ export function Player() {
 
     // appearance from the Player panel (the make-over mage, basically)
     const tp = t.Player;
-    const look = `${tp.skin}|${tp.hair}|${tp.top}|${tp.legs}|${tp.boots}|${tp.capeColor}|${tp.capeTrim}|${tp.cape}|${tp.hat}`;
+    const look = `${tp.skin}|${tp.hair}|${tp.outfit}|${tp.glasses}|${tp.capeColor}|${tp.capeTrim}|${tp.cape}|${tp.hat}`;
     if (look !== s.look) {
       s.look = look;
       avatar.setLook({
         skin: tp.skin,
         hair: tp.hair,
-        top: tp.top,
-        legs: tp.legs,
-        boots: tp.boots,
+        outfit: (['croissant', 'polka', 'stripes', 'classic'] as const).find((o) => o === tp.outfit) ?? 'croissant',
+        glasses: tp.glasses,
         cape: tp.capeColor,
         capeTrim: tp.capeTrim,
         capeOn: tp.cape,

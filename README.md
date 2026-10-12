@@ -6,8 +6,9 @@ You open what looks like a design file: the floor plan of a house, drawn as blue
 infinite dot-grid canvas, with dotted hotspots where the furniture goes. Zoom out (or hit
 **Present ▶**, or double-tap) and the plan builds itself: walls rise off the print, furniture
 hammers in with puffs of sawdust, the editor chrome slides away, and you land in the garden
-courtyard at the middle of the house as Toe Knee: an old-school player model in a linen shirt
-and a skillcape with a mouse cursor for an emblem.
+courtyard at the middle of the house as Toe Knee (Tony, said fast): an old-school player model of
+Tony, long wavy hair, round wire glasses, the croissant shirt, and a skillcape with a mouse cursor
+for an emblem.
 
 The house is an Old School RuneScape player-owned house. Room types, hotspot names, the furniture
 tiers and their level / material requirements follow the POH data in RuneLite's open-source
@@ -26,14 +27,16 @@ The house portal by spawn takes you home.
 
 - **Walk** with tap / click (600 ms ticks, 8-way A* pathing, run with caffeine). Walls between
   you and the camera cut away to knee height.
-- **Toe Knee** is a procedural low-poly player model: square-section limbs on two-bone IK, a stiff
-  old-school walk, elbows-up run, a cape that streams behind you, and a pose for each thing you can
-  use: sitting in chairs and on benches, kneeling to hammer when you build, sawing when you remove,
-  warming your hands, pulling a book off the shelf, praying, petting the cat, pumping water,
-  playing the organ. Right-click yourself for emotes, or type `::dance`, `::wave`, `::cheer`,
-  `::think`, `::clap`, `::shrug`, `::bow`, `::yawn`. The DialKit Player panel is the make-over
-  mage: skin, hair, clothes, cape, the pointer helm, and `animFps` to hold frames like the game
-  without animation smoothing.
+- **Toe Knee** is one continuous skinned mesh on a procedural skeleton (`app/otherworld/avatar`):
+  two-bone IK, smooth shading with baked occlusion, a stiff old-school walk, elbows-up run, hair
+  that settles from the head onto the shoulders, and a cloth-ish cape that streams behind you and
+  drapes over the hips. There's a pose for each thing you can use: sitting in chairs and on
+  benches, kneeling to hammer when you build, sawing when you remove, warming your hands, pulling
+  a book off the shelf, praying, petting the cat, pumping water, playing the organ. Right-click
+  yourself for emotes, or type `::dance`, `::wave`, `::cheer`, `::think`, `::clap`, `::shrug`,
+  `::bow`, `::yawn`. The DialKit Player panel is the make-over mage: outfit (croissant shirt,
+  polka dots and the chore jacket, embroidered stripes, or a fresh account), glasses, skin, hair,
+  cape, the pointer helm, and `animFps` to hold frames like the game without animation smoothing.
 - **Long-press / right-click** anything for the "Choose Option" menu (Sit-on, Warm-hands,
   Search, Inspect, Examine, Steal-from…).
 - **Building mode** (hammer button, the **B** key, or `::build`): empty hotspots show as ghosts.

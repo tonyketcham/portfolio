@@ -1,232 +1,42 @@
 /**
- * Toe Knee, rigged like an old-school player model: a low-poly, flat-shaded
- * person with a blocky head, square-section limbs, mitten hands and wedge
- * boots, in a linen shirt and brown trousers (a fresh account, basically)
- * wearing a skillcape whose emblem is a mouse cursor. Headgear slot: the
- * pointer helm, for when you want to be the cursor again.
+ * Toe Knee, rigged: a better-rendered old-school player model (see ./model)
+ * on a procedural skeleton. Each frame a pose (./poses) gives targets for the
+ * pelvis, torso, head, hands and feet; those are damped toward, the walk
+ * cycle is layered on top, two-bone IK finds the elbows and knees, and the
+ * bones of one continuous skinned mesh are aimed along the result. The cape
+ * is cloth-ish: it bends, ripples, streams back as you move and drapes over
+ * the hips instead of through them.
  *
- * Fully procedural and React-free (it renders headless too). Each frame a
- * pose (./poses) gives targets for the pelvis, torso, head, hands and feet;
- * those are damped toward, the walk cycle is layered on top, and two-bone IK
- * places the elbows and knees. One vertex-coloured material; each bone is
- * its own mesh (about twenty draw calls). Colours rebuild the geometry.
+ * React-free, so it renders headless too.
  */
 import * as THREE from 'three/webgpu';
+import { abs, attribute, float, floor, fract, frontFacing, max, mix, normalView, output, positionView, select, step, uniform, vec2, vec3, vec4 } from 'three/tsl';
 import { Kit } from '../house/kit';
+import { v3 } from '../shaders/common';
+import {
+  B,
+  CAPE_COLS,
+  CAPE_LEN,
+  CAPE_ROWS,
+  EYE_Y,
+  HEAD_OFFSET,
+  HEAD_SCALE,
+  OUTFITS,
+  TOE_KNEE,
+  buildAvatarGeometry,
+  buildSkeleton,
+  capeGeometry,
+  capeTexture,
+  eyesGeometry,
+  glassesGeometry,
+  lensGeometry,
+  necklaceGeometry,
+  printGeometry,
+  printTexture,
+  type AvatarLook,
+} from './model';
 import { DIM, gait, newFrame, poseFrame, type PoseFrame, type PoseKind, type PropId, type V3 } from './poses';
 
-export type HatId = 'none' | 'pointer';
-
-export interface AvatarLook {
-  skin: string;
-  hair: string;
-  top: string;
-  legs: string;
-  boots: string;
-  cape: string;
-  capeTrim: string;
-  /** Wear the cape at all. */
-  capeOn: boolean;
-  hat: HatId;
-}
-
-export const TOE_KNEE: AvatarLook = {
-  skin: '#c6936b',
-  hair: '#3b2414',
-  top: '#d8d0bf',
-  legs: '#5c4632',
-  boots: '#3a281b',
-  cape: '#2557d6',
-  capeTrim: '#f4f4f5',
-  capeOn: true,
-  hat: 'none',
-};
-
-const shade = (hex: string, k: number) => '#' + new THREE.Color(hex).multiplyScalar(k).getHexString();
-
-// The classic pointer (x right, y down), 11.5 × 19 units.
-const ARROW: [number, number][] = [
-  [0, 0],
-  [0, 16],
-  [4, 12.5],
-  [7, 19],
-  [9.6, 18],
-  [6.6, 11.6],
-  [11.5, 11.5],
-];
-/** The pointer as an outline, `scale` per unit, tip at the top, centred; `mirror` for the back of things. */
-function arrowOutline(scale: number, mirror = false, grow = 0): [number, number][] {
-  const cx = 5.75;
-  const cy = 9.5;
-  return ARROW.map(([x, y]) => {
-    const dx = (x - cx) * (1 + grow);
-    const dy = (cy - y) * (1 + grow);
-    return [(mirror ? -dx : dx) * scale, dy * scale];
-  });
-}
-
-// ── geometry ─────────────────────────────────────────────────────────────────
-function hipsGeometry(L: AvatarLook) {
-  const k = new Kit(3);
-  k.box(0.3, 0.17, 0.21, L.legs, [0, -0.13, 0]);
-  k.box(0.315, 0.055, 0.225, '#3b2a1a', [0, -0.005, 0], { jitter: 0.02 }); // belt
-  k.box(0.055, 0.045, 0.02, '#d4a72c', [0, 0.0, 0.115], { jitter: 0 }); // buckle
-  return k.build(false)!;
-}
-
-function torsoGeometry(L: AvatarLook) {
-  const k = new Kit(5);
-  k.extrude(
-    [
-      [-0.15, 0.03],
-      [0.15, 0.03],
-      [0.168, 0.25],
-      [0.198, 0.41],
-      [0.168, 0.5],
-      [-0.168, 0.5],
-      [-0.198, 0.41],
-      [-0.168, 0.25],
-    ],
-    0.2,
-    L.top,
-    [0, 0, 0],
-    { bevel: 0.022 }
-  );
-  const dark = shade(L.top, 0.78);
-  k.box(0.17, 0.035, 0.2, dark, [0, 0.49, 0], { jitter: 0.02 }); // collar
-  for (const sx of [-1, 1]) k.box(0.016, 0.085, 0.02, dark, [sx * 0.022, 0.415, 0.118], { rot: [0, 0, sx * 0.5], jitter: 0 }); // the V of the neckline
-  k.box(0.3, 0.03, 0.235, dark, [0, 0.03, 0], { jitter: 0.02 }); // hem
-  return k.build(false)!;
-}
-
-function capeGeometry(L: AvatarLook) {
-  const k = new Kit(7);
-  const len = 0.95;
-  k.extrude(
-    [
-      [-0.16, 0],
-      [0.16, 0],
-      [0.23, -len],
-      [-0.23, -len],
-    ],
-    0.022,
-    L.cape,
-    [0, 0, 0],
-    { jitter: 0.03 }
-  );
-  // trim: the bottom band and both edges
-  k.box(0.47, 0.065, 0.03, L.capeTrim, [0, -len, 0], { jitter: 0.02 });
-  for (const sx of [-1, 1]) {
-    const a = Math.atan2(0.07, len);
-    k.box(0.03, len, 0.03, L.capeTrim, [sx * 0.195, -len, 0], { rot: [0, 0, sx * a], jitter: 0.02 });
-  }
-  k.box(0.36, 0.05, 0.06, shade(L.cape, 0.7), [0, -0.035, 0.012], { jitter: 0.02 }); // clasp line at the shoulders
-  // the emblem, on the back: a white disc with a black pointer on it
-  k.push([0, -0.3, -0.013], [Math.PI / 2, 0, 0]);
-  k.cyl(0.09, 0.09, 0.008, L.capeTrim, [0, 0, 0], 14, { jitter: 0 });
-  k.pop();
-  k.push([0, -0.3, -0.02]);
-  k.extrude(arrowOutline(0.0105, true), 0.008, '#09090b', [0, 0, 0], { jitter: 0 });
-  k.pop();
-  return k.build(false)!;
-}
-
-function headGeometry(L: AvatarLook) {
-  const k = new Kit(9);
-  const skinDark = shade(L.skin, 0.82);
-  k.cyl(0.055, 0.062, 0.1, L.skin, [0, -0.03, 0], 6); // neck
-  // a blocky head: wide at the temples, narrowing to the chin
-  k.push([0, 0, 0.012]);
-  k.extrude(
-    [
-      [-0.055, 0.055],
-      [0.055, 0.055],
-      [0.102, 0.12],
-      [0.114, 0.22],
-      [0.102, 0.33],
-      [-0.102, 0.33],
-      [-0.114, 0.22],
-      [-0.102, 0.12],
-    ],
-    0.225,
-    L.skin,
-    [0, 0, 0],
-    { bevel: 0.014 }
-  );
-  const fz = 0.1125 + 0.014;
-  k.box(0.036, 0.058, 0.042, skinDark, [0, 0.125, fz]); // nose
-  k.box(0.055, 0.012, 0.01, '#6b2f25', [0, 0.098, fz + 0.002], { jitter: 0 }); // mouth
-  for (const sx of [-1, 1]) {
-    k.box(0.046, 0.014, 0.014, L.hair, [sx * 0.046, 0.232, fz + 0.002], { rot: [0, 0, sx * 0.14], jitter: 0 }); // brow
-    k.box(0.026, 0.062, 0.04, L.skin, [sx * 0.12, 0.17, -0.01]); // ear
-  }
-  k.pop();
-  // hair: a cap, the back, sides, a fringe and a tuft
-  k.box(0.25, 0.07, 0.27, L.hair, [0, 0.305, 0.004]);
-  k.box(0.245, 0.19, 0.055, L.hair, [0, 0.14, -0.112]);
-  for (const sx of [-1, 1]) k.box(0.03, 0.11, 0.15, L.hair, [sx * 0.119, 0.2, -0.04]);
-  k.box(0.21, 0.05, 0.045, L.hair, [0, 0.285, 0.122], { rot: [0.25, 0, 0] });
-  k.box(0.08, 0.05, 0.09, shade(L.hair, 1.15), [0.04, 0.36, 0.05], { rot: [0, 0.3, 0.35] });
-  if (L.hat === 'pointer') {
-    // the pointer helm: a black skullcap with the cursor stood up on top, white rim and all
-    k.box(0.262, 0.06, 0.282, '#18181b', [0, 0.315, 0.004]);
-    k.push([0, 0.47, -0.01], [-0.12, 0, 0.08]);
-    k.extrude(arrowOutline(0.0185, false, 0.12), 0.05, '#fafafa', [0, 0, 0], { jitter: 0 });
-    k.extrude(arrowOutline(0.0185), 0.07, '#09090b', [0, 0, 0], { jitter: 0 });
-    k.pop();
-  }
-  return k.build(false)!;
-}
-
-/** Eyes on their own so they can blink and squint. */
-function eyesGeometry() {
-  const k = new Kit(11);
-  for (const sx of [-1, 1]) {
-    k.box(0.036, 0.022, 0.01, '#f4f4f5', [sx * 0.046, -0.011, 0], { jitter: 0 });
-    k.box(0.016, 0.02, 0.012, '#18181b', [sx * 0.04, -0.01, 0.002], { jitter: 0 });
-  }
-  return k.build(false)!;
-}
-
-/** Unit-length limb along +y with a square section (the low-poly look). */
-function limbGeometry(rEnd: number, rStart: number, color: string) {
-  const g = new THREE.CylinderGeometry(rEnd, rStart, 1, 4, 1).toNonIndexed();
-  g.rotateY(Math.PI / 4);
-  const c = new THREE.Color(color);
-  const n = g.attributes.position.count;
-  const col = new Float32Array(n * 3);
-  for (let i = 0; i < n; i += 3) {
-    const k = 0.95 + ((i * 7919) % 11) / 110;
-    for (let v = i; v < i + 3; v++) col.set([c.r * k, c.g * k, c.b * k], v * 3);
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.deleteAttribute('uv');
-  g.computeVertexNormals();
-  return g;
-}
-
-function jointGeometry(size: number, color: string) {
-  const k = new Kit(13);
-  k.box(size, size, size, color, [0, -size / 2, 0], { jitter: 0.03 });
-  return k.build(false)!;
-}
-
-function handGeometry(L: AvatarLook, side: number) {
-  const k = new Kit(15);
-  k.box(0.072, 0.105, 0.062, L.skin, [0, -0.005, 0], { jitter: 0.04 });
-  k.box(0.03, 0.055, 0.032, shade(L.skin, 0.92), [side * 0.045, 0.01, 0.02], { rot: [0, 0, side * -0.3] }); // thumb
-  k.box(0.08, 0.035, 0.07, shade(L.top, 0.85), [0, -0.035, 0]); // cuff
-  return k.build(false)!;
-}
-
-function bootGeometry(L: AvatarLook) {
-  const k = new Kit(17);
-  k.box(0.13, 0.03, 0.25, '#1c140e', [0, 0, 0.04], { jitter: 0.02 }); // sole
-  k.box(0.12, 0.13, 0.15, L.boots, [0, 0.025, -0.005]);
-  k.box(0.118, 0.075, 0.11, L.boots, [0, 0.025, 0.11]); // toe
-  k.box(0.132, 0.035, 0.165, shade(L.boots, 0.75), [0, 0.15, -0.005], { jitter: 0.02 }); // cuff
-  return k.build(false)!;
-}
 
 function propGeometry(id: PropId) {
   const k = new Kit(19);
@@ -259,16 +69,47 @@ function propGeometry(id: PropId) {
   return k.build(false)!;
 }
 
+/**
+ * Smooth-shaded, vertex-coloured, with shirt patterns drawn procedurally
+ * (polka dots, embroidered stripes) and a soft rim so the silhouette reads.
+ */
+function bodyMaterial() {
+  const m = new THREE.MeshLambertNodeMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  const type = uniform(0);
+  const tint = uniform(new THREE.Color('#ffffff'));
+  const pat = attribute<'vec3'>('aPat', 'vec3');
+  // polka: offset rows of round dots
+  const q = vec2(pat.x, pat.y).div(0.078).toVar();
+  const qx = q.x.add(floor(q.y).mul(0.5));
+  const d = vec2(fract(qx), fract(q.y)).sub(0.5).length();
+  const dots = float(1).sub(d.smoothstep(0.25, 0.29));
+  // stripes: pairs of thin lines with an embroidered band of little diamonds between
+  const u = fract(pat.x.div(0.075));
+  const lines = max(step(u, 0.05), step(abs(u.sub(0.48)), 0.025));
+  const diamond = step(abs(fract(pat.y.div(0.028)).sub(0.5)).add(abs(u.sub(0.24)).mul(2.6)), 0.3);
+  const stripes = max(lines, diamond.mul(0.85));
+  const shape = select(type.lessThan(1.5), dots, stripes).mul(step(0.5, type));
+  m.colorNode = mix(vec3(1), v3(tint), shape.mul(pat.z));
+  const rim = float(1).sub(normalView.dot(positionView.normalize().negate()).abs()).pow(3);
+  m.outputNode = vec4(output.rgb.add(output.rgb.mul(rim).mul(0.3)), output.a);
+  return Object.assign(m, { pattern: { type, tint } });
+}
+
 // ── maths ────────────────────────────────────────────────────────────────────
-const UP = new THREE.Vector3(0, 1, 0);
 const tA = new THREE.Vector3();
 const tB = new THREE.Vector3();
 const tEnd = new THREE.Vector3();
 const tDir = new THREE.Vector3();
 const tPerp = new THREE.Vector3();
 const tPole = new THREE.Vector3();
+const tFront = new THREE.Vector3();
+const tMid = new THREE.Vector3();
 const tE = new THREE.Euler();
-const tQ = new THREE.Quaternion();
+const tInv = new THREE.Quaternion();
+const bx = new THREE.Vector3();
+const by = new THREE.Vector3();
+const bz = new THREE.Vector3();
+const mB = new THREE.Matrix4();
 
 /** Two-bone IK: from `a` toward `target`, bending toward `pole`. */
 function ik(a: THREE.Vector3, target: THREE.Vector3, l1: number, l2: number, pole: THREE.Vector3, mid: THREE.Vector3, end: THREE.Vector3) {
@@ -284,12 +125,18 @@ function ik(a: THREE.Vector3, target: THREE.Vector3, l1: number, l2: number, pol
   end.copy(a).addScaledVector(tDir, d);
 }
 
-function placeBone(mesh: THREE.Object3D, a: THREE.Vector3, b: THREE.Vector3) {
-  tDir.subVectors(b, a);
-  const len = tDir.length();
-  mesh.position.copy(a).addScaledVector(tDir, 0.5);
-  mesh.quaternion.setFromUnitVectors(UP, tDir.normalize());
-  mesh.scale.set(1, Math.max(1e-3, len), 1);
+/**
+ * The rotation that takes a rest bone (pointing down −Y, front +Z) to point
+ * along `down` with its front toward `front`.
+ */
+function aim(down: THREE.Vector3, front: THREE.Vector3, out: THREE.Quaternion) {
+  by.copy(down).normalize().negate();
+  bz.copy(front).addScaledVector(by, -front.dot(by));
+  if (bz.lengthSq() < 1e-6) bz.set(0, 0, 1).addScaledVector(by, -by.z);
+  if (bz.lengthSq() < 1e-6) bz.set(1, 0, 0);
+  bz.normalize();
+  bx.crossVectors(by, bz);
+  return out.setFromRotationMatrix(mB.makeBasis(bx, by, bz));
 }
 
 const v = (a: V3, out = new THREE.Vector3()) => out.set(a[0], a[1], a[2]);
@@ -318,13 +165,6 @@ function blend(cur: PoseFrame, to: PoseFrame, k: number) {
 }
 
 // ── the avatar ───────────────────────────────────────────────────────────────
-interface Limb {
-  a: THREE.Mesh;
-  b: THREE.Mesh;
-  joint: THREE.Mesh;
-  end: THREE.Mesh;
-}
-
 export interface AvatarInput {
   dt: number;
   time: number;
@@ -337,7 +177,7 @@ export interface AvatarInput {
   bounce?: number;
   /** 0..1 eyelid closure. */
   blink: number;
-  /** Look target in the avatar's local space (head and eyes follow). */
+  /** Look target in the avatar's local space (head follows). */
   look?: THREE.Vector3 | null;
   /** Landing squash, 0..1. */
   squash?: number;
@@ -353,102 +193,116 @@ export class Avatar {
   readonly frame = newFrame();
   private target = newFrame();
   private look: AvatarLook;
-  private material = new THREE.MeshLambertNodeMaterial({ vertexColors: true, flatShading: true });
+  private material = bodyMaterial();
+  private mesh: THREE.SkinnedMesh;
+  private bones: THREE.Bone[];
+  private eyes: THREE.Mesh;
+  private eyeMaterial = new THREE.MeshLambertNodeMaterial({ vertexColors: true });
+  private glasses: THREE.Group = new THREE.Group();
+  private lensMaterial = new THREE.MeshBasicNodeMaterial({ color: '#e0f2fe', transparent: true, opacity: 0.16, depthWrite: false });
+  private necklace: THREE.Mesh;
+  private print: THREE.Mesh;
+  private printMaterial = new THREE.MeshLambertNodeMaterial({ map: printTexture(), alphaTest: 0.5, transparent: false });
+  private cape: THREE.Mesh;
+  private capeMaterial: THREE.MeshLambertNodeMaterial;
+  private capePivot = new THREE.Group();
+  private capeAngle = 0.07;
+  private capeRestPts: THREE.Vector3[] = [];
   private first = true;
   private stepAcc = 0;
-  private hips: THREE.Mesh;
-  private torso: THREE.Mesh;
-  private cape: THREE.Mesh;
-  private capePivot = new THREE.Group();
-  private capeAngle = 0;
-  private head = new THREE.Group();
-  private headMesh: THREE.Mesh;
-  private eyes: THREE.Mesh;
-  private legs: Limb[] = [];
-  private arms: Limb[] = [];
   private props = new Map<PropId, THREE.Mesh>();
+  private propMaterial = new THREE.MeshLambertNodeMaterial({ vertexColors: true, flatShading: true });
   private pelvis = new THREE.Vector3();
   private torsoQ = new THREE.Quaternion();
   private hipQ = new THREE.Quaternion();
+  private segQ = Array.from({ length: 16 }, () => new THREE.Quaternion());
+  private hand = new THREE.Vector3();
 
   constructor(look: AvatarLook = TOE_KNEE) {
     this.look = { ...look };
-    const mesh = () => {
-      const o = new THREE.Mesh(new THREE.BufferGeometry(), this.material);
-      o.castShadow = true;
-      return o;
-    };
     this.group.name = 'avatar';
     this.group.add(this.body);
 
-    this.hips = mesh();
-    this.torso = mesh();
-    this.cape = mesh();
-    this.capePivot.position.set(0, DIM.shoulder[1] - 0.005, -0.125);
-    this.capePivot.add(this.cape);
-    this.torso.add(this.capePivot);
-    this.headMesh = mesh();
-    this.eyes = mesh();
-    this.eyes.castShadow = false;
-    this.eyes.position.set(0, 0.2, 0.012 + 0.1125 + 0.014 + 0.004);
-    this.head.add(this.headMesh, this.eyes);
-    this.body.add(this.hips, this.torso, this.head);
+    this.bones = buildSkeleton();
+    this.mesh = new THREE.SkinnedMesh(buildAvatarGeometry(this.look), this.material);
+    this.mesh.add(this.bones[B.root]);
+    this.mesh.bind(new THREE.Skeleton(this.bones));
+    this.mesh.castShadow = true;
+    this.mesh.frustumCulled = false;
+    this.body.add(this.mesh);
 
-    for (let i = 0; i < 2; i++) {
-      this.legs.push({ a: mesh(), b: mesh(), joint: mesh(), end: mesh() });
-      this.arms.push({ a: mesh(), b: mesh(), joint: mesh(), end: mesh() });
-    }
-    for (const l of [...this.legs, ...this.arms]) this.body.add(l.a, l.b, l.joint, l.end);
+    this.eyes = new THREE.Mesh(eyesGeometry(), this.eyeMaterial);
+    this.eyes.position.set(HEAD_OFFSET.x, EYE_Y * HEAD_SCALE + HEAD_OFFSET.y, HEAD_OFFSET.z);
+    this.eyes.scale.setScalar(HEAD_SCALE);
+    this.bones[B.head].add(this.eyes);
+
+    // round wire glasses (and the faintest lenses)
+    const frames = new THREE.Mesh(glassesGeometry(), this.propMaterial);
+    frames.castShadow = true;
+    const lenses = new THREE.Mesh(lensGeometry(), this.lensMaterial);
+    lenses.renderOrder = 3;
+    this.glasses.add(frames, lenses);
+    this.glasses.position.copy(HEAD_OFFSET);
+    this.glasses.scale.setScalar(HEAD_SCALE);
+    this.bones[B.head].add(this.glasses);
+
+    // outfit pieces on the chest: a silver chain, a printed croissant
+    this.necklace = new THREE.Mesh(necklaceGeometry(), this.propMaterial);
+    this.print = new THREE.Mesh(printGeometry(), this.printMaterial);
+    this.bones[B.chest].add(this.necklace, this.print);
+    this.dress();
+
+    // the cape hangs from the back of the shoulders, on the chest bone; its inside is in shade
+    this.capeMaterial = new THREE.MeshLambertNodeMaterial({ map: capeTexture(this.look), side: THREE.DoubleSide });
+    this.capeMaterial.outputNode = vec4(output.rgb.mul(frontFacing.select(float(1), float(0.72))), output.a);
+    this.cape = new THREE.Mesh(capeGeometry(), this.capeMaterial);
+    this.cape.castShadow = true;
+    this.cape.frustumCulled = false;
+    const pa = this.cape.geometry.attributes.position;
+    for (let i = 0; i < pa.count; i++) this.capeRestPts.push(new THREE.Vector3().fromBufferAttribute(pa, i));
+    this.capePivot.position.set(0, DIM.shoulder[1] + 0.03, -0.128);
+    this.capePivot.add(this.cape);
+    this.bones[B.chest].add(this.capePivot);
+    this.cape.visible = this.look.capeOn;
 
     for (const id of ['hammer', 'saw', 'book', 'cup'] as PropId[]) {
-      const p = new THREE.Mesh(propGeometry(id), this.material);
+      const p = new THREE.Mesh(propGeometry(id), this.propMaterial);
       p.castShadow = true;
       p.visible = false;
       this.props.set(id, p);
       this.body.add(p);
     }
-    this.rebuild();
   }
 
-  private swap(m: THREE.Mesh, g: THREE.BufferGeometry) {
-    m.geometry.dispose();
-    m.geometry = g;
-  }
-
-  /** (Re)build every body part's geometry from the current look. */
-  private rebuild() {
-    const L = this.look;
-    this.swap(this.hips, hipsGeometry(L));
-    this.swap(this.torso, torsoGeometry(L));
-    this.swap(this.cape, capeGeometry(L));
-    this.cape.visible = L.capeOn;
-    this.swap(this.headMesh, headGeometry(L));
-    this.swap(this.eyes, eyesGeometry());
-    for (let i = 0; i < 2; i++) {
-      const side = i === 0 ? 1 : -1;
-      const leg = this.legs[i];
-      this.swap(leg.a, limbGeometry(0.066, 0.08, L.legs));
-      this.swap(leg.b, limbGeometry(0.054, 0.066, L.legs));
-      this.swap(leg.joint, jointGeometry(0.12, L.legs));
-      this.swap(leg.end, bootGeometry(L));
-      const arm = this.arms[i];
-      this.swap(arm.a, limbGeometry(0.052, 0.064, L.top));
-      this.swap(arm.b, limbGeometry(0.045, 0.054, L.top));
-      this.swap(arm.joint, jointGeometry(0.1, L.top));
-      this.swap(arm.end, handGeometry(L, side));
-    }
+  /** Accessories and the shirt pattern for the current look. */
+  private dress() {
+    const O = OUTFITS[this.look.outfit];
+    this.glasses.visible = this.look.glasses;
+    this.necklace.visible = !!O.necklace;
+    this.print.visible = O.print === 'croissant';
+    this.material.pattern.type.value = O.pattern === 'polka' ? 1 : O.pattern === 'stripes' ? 2 : 0;
+    this.material.pattern.tint.value.set(O.patternColor);
   }
 
   setLook(look: Partial<AvatarLook>) {
     const next = { ...this.look, ...look };
     if ((Object.keys(next) as (keyof AvatarLook)[]).every((k) => next[k] === this.look[k])) return;
+    const capeChanged = next.cape !== this.look.cape || next.capeTrim !== this.look.capeTrim;
     this.look = next;
-    this.rebuild();
+    this.mesh.geometry.dispose();
+    this.mesh.geometry = buildAvatarGeometry(this.look);
+    this.cape.visible = this.look.capeOn;
+    this.dress();
+    if (capeChanged) {
+      this.capeMaterial.map?.dispose();
+      this.capeMaterial.map = capeTexture(this.look);
+      this.capeMaterial.needsUpdate = true;
+    }
   }
 
   /** World position of the right hand (where props and sawdust go). */
   rightHand(out = new THREE.Vector3()) {
-    return this.arms[1].end.getWorldPosition(out);
+    return this.bones[B.handR].localToWorld(out.set(0, -0.07, 0));
   }
 
   update(o: AvatarInput) {
@@ -480,70 +334,131 @@ export class Avatar {
     const sq = o.squash ?? 0;
     this.body.scale.set(1 + sq * 0.25, 1 - sq * 0.3, 1 + sq * 0.25);
 
-    // pelvis, hips, torso
+    const bones = this.bones;
+    const Q = this.segQ;
+
+    // pelvis and torso
     v(cur.pelvis, this.pelvis);
     this.torsoQ.setFromEuler(tE.set(cur.lean, cur.twist, cur.roll, 'YXZ'));
     this.hipQ.setFromEuler(tE.set(0, cur.twist * 0.35, cur.roll * 0.4, 'YXZ'));
-    this.hips.position.copy(this.pelvis);
-    this.hips.quaternion.copy(this.hipQ);
-    this.torso.position.copy(this.pelvis);
-    this.torso.quaternion.copy(this.torsoQ);
+    bones[B.pelvis].position.copy(this.pelvis);
+    bones[B.pelvis].quaternion.copy(this.hipQ);
+    bones[B.chest].quaternion.copy(tInv.copy(this.hipQ).invert()).multiply(this.torsoQ);
+    bones[B.head].quaternion.setFromEuler(tE.set(cur.head[0], cur.head[1], cur.head[2], 'YXZ'));
 
-    // the cape hangs straight down whatever the torso does, and streams back as you move
-    const run = Math.max(0, o.speed - 1);
-    const capeTarget = -cur.lean + 0.06 + Math.min(1, o.speed) * 0.28 + run * 0.22 + Math.sin(o.time * 2.4) * 0.025 * (0.4 + o.speed);
-    this.capeAngle = snap ? capeTarget : this.capeAngle + (capeTarget - this.capeAngle) * Math.min(1, o.dt * 6);
-    this.capePivot.rotation.x = this.capeAngle;
-
-    // head
-    this.head.position.copy(v(DIM.neck, tA).applyQuaternion(this.torsoQ).add(this.pelvis));
-    this.head.quaternion.copy(this.torsoQ).multiply(tQ.setFromEuler(tE.set(cur.head[0], cur.head[1], cur.head[2], 'YXZ')));
-
-    // legs
+    // legs: IK, then aim thigh, shin and foot along the solution
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? 1 : -1;
-      const L = this.legs[i];
+      const [th, sh, ft] = i === 0 ? [B.thighL, B.shinL, B.footL] : [B.thighR, B.shinR, B.footR];
       const hip = tA.set(side * DIM.hip[0], DIM.hip[1], DIM.hip[2]).applyQuaternion(this.hipQ).add(this.pelvis);
       const ankle = v(cur.feet[i], tB);
       ankle.y += DIM.ankle;
-      const knee = L.joint.position;
-      ik(hip, ankle, DIM.thigh, DIM.shin, v(cur.knees[i], tPole), knee, tEnd);
-      placeBone(L.a, hip, knee);
-      placeBone(L.b, knee, tEnd);
-      L.joint.quaternion.copy(L.b.quaternion);
-      L.end.position.set(tEnd.x, tEnd.y - DIM.ankle, tEnd.z);
-      L.end.rotation.set(cur.toes[i], cur.twist * 0.2, 0);
+      const pole = v(cur.knees[i], tPole);
+      ik(hip, ankle, DIM.thigh, DIM.shin, pole, tMid, tEnd);
+      aim(tDir.subVectors(tMid, hip), pole, Q[th]);
+      aim(tDir.subVectors(tEnd, tMid), pole, Q[sh]);
+      Q[ft].setFromEuler(tE.set(cur.toes[i], cur.twist * 0.2, 0));
+      bones[th].quaternion.copy(tInv.copy(this.hipQ).invert()).multiply(Q[th]);
+      bones[sh].quaternion.copy(tInv.copy(Q[th]).invert()).multiply(Q[sh]);
+      bones[ft].quaternion.copy(tInv.copy(Q[sh]).invert()).multiply(Q[ft]);
     }
 
-    // arms
+    // arms: elbows bend back, so the arm's front faces away from the pole
     for (let i = 0; i < 2; i++) {
       const side = i === 0 ? 1 : -1;
-      const A = this.arms[i];
+      const [up, fo, ha] = i === 0 ? [B.upperL, B.foreL, B.handL] : [B.upperR, B.foreR, B.handR];
       const sh = tA.set(side * DIM.shoulder[0], DIM.shoulder[1], DIM.shoulder[2]).applyQuaternion(this.torsoQ).add(this.pelvis);
-      const elbow = A.joint.position;
-      ik(sh, v(cur.hands[i], tB), DIM.upper, DIM.fore, v(cur.elbows[i], tPole), elbow, tEnd);
-      placeBone(A.a, sh, elbow);
-      placeBone(A.b, elbow, tEnd);
-      A.joint.quaternion.copy(A.a.quaternion);
-      A.end.position.copy(tEnd);
-      A.end.quaternion.setFromUnitVectors(UP, tDir.subVectors(tEnd, elbow).normalize());
+      const pole = v(cur.elbows[i], tPole);
+      ik(sh, v(cur.hands[i], tB), DIM.upper, DIM.fore, pole, tMid, tEnd);
+      tFront.copy(pole).negate();
+      aim(tDir.subVectors(tMid, sh), tFront, Q[up]);
+      aim(tDir.subVectors(tEnd, tMid), tFront, Q[fo]);
+      bones[up].quaternion.copy(tInv.copy(this.torsoQ).invert()).multiply(Q[up]);
+      bones[fo].quaternion.copy(tInv.copy(Q[up]).invert()).multiply(Q[fo]);
+      bones[ha].quaternion.identity();
+      if (i === 1) this.hand.copy(tEnd).addScaledVector(tDir.subVectors(tEnd, tMid).normalize(), 0.07);
     }
 
     // prop in the right hand
     for (const [id, p] of this.props) {
       p.visible = cur.prop === id;
       if (!p.visible) continue;
-      p.position.copy(this.arms[1].end.position);
+      p.position.copy(this.hand);
       p.rotation.set(cur.propRot[0], cur.propRot[1], cur.propRot[2]);
     }
 
     // eyes: blink and squint
-    this.eyes.scale.y = 1 - Math.max(o.blink, cur.squint * 0.75) * 0.85;
+    this.eyes.scale.y = HEAD_SCALE * (1 - Math.max(o.blink, cur.squint * 0.75) * 0.9);
+
+    if (this.cape.visible) this.updateCape(o, cur, snap);
+  }
+
+  /**
+   * Cloth-ish cape: each column is a chain of segments whose angle grows down
+   * the cape (stiff at the shoulders, loose at the hem), streaming back with
+   * speed, rippling, and pushed out behind the hips.
+   */
+  private updateCape(o: AvatarInput, cur: PoseFrame, snap: boolean) {
+    const run = Math.max(0, o.speed - 1);
+    const s = Math.min(1, o.speed);
+    // follow the torso about halfway, hang off the back, stream behind when moving
+    const target = -cur.lean * 0.55 + 0.07 + s * 0.3 + run * 0.25;
+    this.capeAngle = snap ? target : this.capeAngle + (target - this.capeAngle) * Math.min(1, o.dt * 5);
+
+    // the hips, in the cape pivot's space (chest frame, offset to the pivot)
+    const hips = tA.set(0, -0.08, -0.01).applyQuaternion(this.hipQ);
+    hips.applyQuaternion(tInv.copy(this.torsoQ).invert()).sub(this.capePivot.position);
+    const rx = 0.2;
+    const ry = 0.2;
+    const rz = 0.135;
+
+    const pa = this.cape.geometry.attributes.position as THREE.BufferAttribute;
+    const cols = CAPE_COLS + 1;
+    const seg = CAPE_LEN / CAPE_ROWS;
+    const t = o.time;
+    const p = tEnd;
+    for (let i = 0; i < cols; i++) {
+      const u = i / CAPE_COLS;
+      let y = 0;
+      let z = 0;
+      for (let j = 0; j <= CAPE_ROWS; j++) {
+        const vv = j / CAPE_ROWS;
+        const rest = this.capeRestPts[j * cols + i];
+        if (j > 0) {
+          const ripple = Math.sin(t * (2.2 + s * 5) - vv * 5 + u * 2.4) * (0.05 + s * 0.12) * vv;
+          const ang = this.capeAngle * Math.pow(vv, 0.75) + ripple + (u - 0.5) * 0.05 * vv * s;
+          y -= Math.cos(ang) * seg;
+          z -= Math.sin(ang) * seg;
+        }
+        p.set(rest.x * (1 + vv * s * 0.08), y, z + rest.z);
+        // drape over the hips rather than through them
+        const qx = (p.x - hips.x) / rx;
+        const qy = (p.y - hips.y) / ry;
+        const inside = 1 - qx * qx - qy * qy;
+        if (inside > 0) {
+          const back = hips.z - rz * Math.sqrt(inside) - 0.012;
+          if (p.z > back) {
+            z += back - p.z;
+            p.z = back;
+          }
+        }
+        pa.setXYZ(j * cols + i, p.x, p.y, p.z);
+      }
+    }
+    pa.needsUpdate = true;
+    this.cape.geometry.computeVertexNormals();
   }
 
   dispose() {
-    for (const m of [this.hips, this.torso, this.cape, this.headMesh, this.eyes, ...this.legs.flatMap((l) => [l.a, l.b, l.joint, l.end]), ...this.arms.flatMap((a) => [a.a, a.b, a.joint, a.end]), ...this.props.values()])
-      m.geometry.dispose();
-    this.material.dispose();
+    this.mesh.geometry.dispose();
+    this.eyes.geometry.dispose();
+    this.cape.geometry.dispose();
+    this.capeMaterial.map?.dispose();
+    for (const p of this.props.values()) p.geometry.dispose();
+    this.necklace.geometry.dispose();
+    this.print.geometry.dispose();
+    this.printMaterial.map?.dispose();
+    for (const o of this.glasses.children) (o as THREE.Mesh).geometry.dispose();
+    for (const m of [this.material, this.eyeMaterial, this.capeMaterial, this.propMaterial, this.lensMaterial, this.printMaterial]) m.dispose();
   }
 }

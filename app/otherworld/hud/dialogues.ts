@@ -28,7 +28,7 @@ const giveCard = () => {
 };
 
 export const DIALOGUE: Record<string, DialogueNode> = {
-  tony: { speaker: 'tony', text: 'Oh! Nice cape. What did you max, cursor movement? Welcome to Untitled-1.', next: 'tony-menu' },
+  tony: { speaker: 'tony', text: 'Oh! Same hair, same glasses. Is that my croissant shirt? Welcome to Untitled-1, I suppose.', next: 'tony-menu' },
   'tony-menu': {
     speaker: 'player',
     text: 'Select an option',
