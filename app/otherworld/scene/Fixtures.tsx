@@ -420,7 +420,7 @@ function Hut({ fixture }: { fixture: Fixture }) {
         verb: 'Knock',
         approach: true,
         run: () => {
-          npcSay('hut', 'Knock knock.', () => runtime.player.pos.clone().setY(runtime.player.pos.y + 1.7), 1.6);
+          npcSay('hut', 'Knock knock.', () => runtime.player.pos.clone().setY(runtime.player.pos.y + 2.1), 1.6);
           window.setTimeout(() => npcSay('hut-reply', '…beep boop.', anchor, 3, '#93c5fd'), 1500);
           gameState().addXp('curiosity', 4);
         },

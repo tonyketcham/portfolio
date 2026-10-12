@@ -94,7 +94,7 @@ export function Overheads() {
     const now = performance.now();
     const items: { text: string; pos: THREE.Vector3 | null; color?: string }[] = [];
     if (runtime.overhead.until > now && runtime.overhead.text) {
-      anchor.current.copy(runtime.player.pos).y += 1.75;
+      anchor.current.copy(runtime.player.pos).y += 2.1;
       items.push({ text: runtime.overhead.text, pos: anchor.current.clone() });
     }
     for (const [id, o] of runtime.overheads) {
