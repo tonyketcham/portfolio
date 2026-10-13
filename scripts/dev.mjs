@@ -4,7 +4,7 @@
  *
  *   pnpm dev:all
  *
- * Runs `next dev` and `tsc --noEmit --watch` side by side, prefixes their output
+ * Runs `next dev`, the local copy CMS and `tsc --noEmit --watch`, prefixes their output
  * in this terminal, and tees each to `.dev-logs/<name>.log` so tooling (and
  * agents) can read type errors and server output without a TTY.
  */
@@ -13,6 +13,7 @@ import { createWriteStream, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
+if (process.env.NODE_ENV === 'production') throw new Error('The development runner is not available in production.');
 mkdirSync('.dev-logs', { recursive: true });
 
 const port = process.env.PORT ?? '3000';
@@ -37,11 +38,20 @@ function run(name, bin, args, color) {
   };
   child.stdout.on('data', forward);
   child.stderr.on('data', forward);
-  child.on('exit', (code) => log.write(`\n[${name} exited with ${code}]\n`));
+  child.on('exit', (code) => {
+    log.write(`\n[${name} exited with ${code}]\n`);
+    if (code) stop(code);
+  });
+  child.on('error', (error) => {
+    log.write(`\n[${name} failed: ${error.message}]\n`);
+    console.error(`${name} failed: ${error.message}`);
+    stop(1);
+  });
   children.push(child);
   return child;
 }
 
+run('cms', require.resolve('./cms/server.mjs'), [], '32');
 run('next', require.resolve('next/dist/bin/next'), ['dev', '-p', port], '36');
 run(
   'tsc',
@@ -50,9 +60,9 @@ run(
   '35'
 );
 
-const stop = () => {
+function stop(code = 0) {
   for (const child of children) child.kill();
-  process.exit(0);
-};
-process.on('SIGINT', stop);
-process.on('SIGTERM', stop);
+  process.exit(code);
+}
+process.on('SIGINT', () => stop());
+process.on('SIGTERM', () => stop());

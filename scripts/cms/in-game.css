@@ -1,0 +1,40 @@
+#ow-copy-editor { font: 13px/1.5 system-ui, sans-serif; color: #edf2e6; }
+#ow-copy-editor * { box-sizing: border-box; }
+#ow-copy-editor [hidden] { display: none !important; }
+#ow-copy-editor button { font: inherit; color: inherit; border: 1px solid #657354; border-radius: 6px; background: #20271c; cursor: pointer; padding: 8px 11px; }
+#ow-copy-editor button:hover:not(:disabled) { background: #35432a; }
+#ow-copy-editor button:disabled { opacity: .45; cursor: default; }
+#ow-copy-editor button:focus-visible, #ow-copy-editor textarea:focus, #ow-copy-editor input:focus { outline: 2px solid #c6e995; outline-offset: 2px; }
+#ow-copy-editor .copy-launch { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 2147483645; color: #d4f2ad; background: #182016eb; box-shadow: 0 2px 12px #0007; }
+#ow-copy-editor .copy-editor { position: fixed; top: 0; right: 0; bottom: 0; width: 360px; max-width: 44vw; z-index: 2147483646; overflow: auto; background: #171d15f5; border-left: 1px solid #657354; box-shadow: -8px 0 35px #0005; padding: 20px; overscroll-behavior: contain; }
+#ow-copy-editor header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#ow-copy-editor h2 { font: 25px Georgia, serif; margin: 8px 0; }
+#ow-copy-editor .copy-eyebrow { font-size: 10px; color: #c6e995; letter-spacing: .1em; }
+#ow-copy-editor .copy-guidance { color: #b8c3ae; margin: 14px 0 22px; font-size: 12px; }
+#ow-copy-editor .copy-dock, #ow-copy-editor .copy-refresh { background: none; padding: 3px 0; border: 0; font-size: 11px; color: #b8c3ae; margin-bottom: 15px; }
+#ow-copy-editor .copy-refresh { margin-left: 12px; }
+#ow-copy-editor[data-side=left] .copy-editor { right: auto; left: 0; border-left: 0; border-right: 1px solid #657354; }
+#ow-copy-editor .copy-selection { font-weight: 600; color: #d4f2ad; border-top: 1px solid #414e36; padding-top: 15px; margin-bottom: 12px; overflow-wrap: anywhere; }
+#ow-copy-editor .copy-field { margin: 18px 0; }
+#ow-copy-editor label { display: block; margin-bottom: 7px; }
+#ow-copy-editor textarea, #ow-copy-editor input { width: 100%; font: inherit; color: #edf2e6; background: #0f150e; border: 1px solid #4a593e; border-radius: 5px; padding: 10px; }
+#ow-copy-editor textarea { resize: vertical; line-height: 1.6; }
+#ow-copy-editor small { display: block; color: #9fae93; font-size: 10px; margin-top: 5px; overflow-wrap: anywhere; }
+#ow-copy-editor details { color: #b8c3ae; font-size: 11px; margin: 15px 0; }
+#ow-copy-editor summary { cursor: pointer; margin-bottom: 10px; }
+#ow-copy-editor .copy-results button { text-align: left; width: 100%; margin: 6px 0; overflow-wrap: anywhere; }
+#ow-copy-editor footer { margin-top: 26px; border-top: 1px solid #414e36; padding-top: 15px; }
+#ow-copy-editor .copy-draft-count { font-size: 11px; color: #c6e995; }
+#ow-copy-editor .copy-buttons { display: flex; gap: 8px; margin: 10px 0; }
+#ow-copy-editor .copy-save { background: #c6e995; color: #1a2612; font-weight: 600; flex: 1; }
+#ow-copy-editor .copy-discard { border: 0; color: #b8c3ae; padding: 5px 0; background: none; font-size: 11px; }
+#ow-copy-editor .copy-notice { font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+#ow-copy-editor .copy-notice[data-error=true] { color: #ffb4a0; }
+#ow-copy-editor .copy-commits ul { padding-left: 15px; overflow-wrap: anywhere; }
+#ow-copy-editor .copy-highlight { pointer-events: none; position: fixed; border: 2px solid #c6e995; border-radius: 3px; box-shadow: 0 0 0 3px #16200c99; z-index: 2147483644; }
+html[data-copy-paused] .ow-root { cursor: crosshair; }
+html[data-copy-paused] .dialkit-root { visibility: hidden; pointer-events: none; }
+html[data-copy-paused] [data-ow-copy]:hover { outline: 1px dashed #c6e995; outline-offset: 3px; }
+html[data-copy-paused] .ow-root *, html[data-copy-paused] .ow-root *::before, html[data-copy-paused] .ow-root *::after { animation-play-state: paused !important; transition: none !important; }
+@media (max-width: 700px) { #ow-copy-editor .copy-editor { top: auto; height: 48vh; max-width: none; width: 100%; border-left: 0; border-top: 1px solid #657354; padding: 14px; } #ow-copy-editor .copy-launch { font-size: 11px; top: 5px; } }
+@media (max-width: 700px) { #ow-copy-editor[data-side=left] .copy-editor { top: 0; bottom: auto; border-right: 0; } }

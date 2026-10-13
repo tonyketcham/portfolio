@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS=--inspect next dev & npx next-video sync -w",
+    "dev": "node scripts/dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "dev:all": "node scripts/dev.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cms": "node scripts/cms/server.mjs",
+    "test:cms": "node --test scripts/cms/cms.test.mjs"
   },
   "dependencies": {
     "@braintree/browser-detection": "2.0.2",

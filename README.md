@@ -106,7 +106,41 @@ pnpm install
 pnpm dev:all   # next dev + tsc --watch, both tee'd to .dev-logs/
 ```
 
-`pnpm dev` is the original script (inspector + next-video sync). `pnpm typecheck` runs `tsc --noEmit`.
+`pnpm dev` and `pnpm dev:all` run Next, the local copy CMS, and `tsc --watch`.
+`pnpm typecheck` runs `tsc --noEmit`.
+
+### Local copy CMS
+
+In the running experience, click **Pause & edit copy**, or press **Ctrl/Cmd+Shift+E**.
+The world, timers, physics, audio, video and animations freeze. Click a visible line,
+dialogue, tooltip, 3D label, or world object to select its authored copy. Type in the
+side panel to preview the change immediately in the frozen scene. Search finds copy
+from other parts of the experience. **Resume** or **Escape** continues from the same
+moment; unsaved drafts remain available. Discard restores the saved copy.
+
+**Save & commit** (also Ctrl/Cmd+S) saves to `content/copy.json` and creates a local
+commit containing only that file. Source files can have unrelated uncommitted work;
+the editor never absorbs those edits. It rejects source or saved-copy changes made
+since loading, keeps the draft for retrying, and restores its own writes if the
+commit fails. Unrelated staged changes stay staged. Dynamic copy is edited in text
+segments while its expressions remain intact.
+
+**[localhost:3000/cms/](http://localhost:3000/cms/)** remains available as a searchable
+copy desk, using the same saved copy and commit workflow. Additional technical strings
+are visible there for reference and read only.
+
+The adjacent **Push to main** button sends all pending commits to `origin/main`, including
+commits made outside the CMS. The sidebar lists those commits before pushing. It requires
+the local `main` branch and the machine's existing Git authentication, fetches first, and
+refuses a divergent remote. It never force-pushes or auto-merges. Save drafts before pushing.
+
+The CMS is a loopback-only companion under `scripts/cms/`. A build-time loader traces
+copy ownership and connects pause controls only in development. Production uses only
+the saved copy resolver: no editor UI, source metadata, pause code, or CMS endpoints.
+The `/cms/` proxy exists only in development, and the companion refuses `NODE_ENV=production`.
+`pnpm build` / `pnpm start` do not launch it. `pnpm cms` runs it separately at
+`http://127.0.0.1:4318/cms/` (configure `CMS_PORT` and `PORT` together if needed).
+Run `pnpm test:cms` for isolated copy-editing, commit, rollback, and push checks.
 
 Useful URLs: `/?intro` forces the intro, `/?skip` skips it, `/?dial` shows DialKit,
 `/?work=modyfi` deep-links to a piece, `/?webgl` forces the WebGL2 backend.

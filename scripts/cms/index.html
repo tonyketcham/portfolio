@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="cms-token" content="__TOKEN__">
+  <title>Copy desk · Untitled-1</title>
+  <link rel="stylesheet" href="/cms/style.css">
+  <script src="/cms/client.js" defer></script>
+</head>
+<body>
+  <header>
+    <div class="identity"><span class="mark" aria-hidden="true">✳</span><div><h1>Copy desk</h1><p>Untitled-1 <span class="badge">LOCAL DEV</span></p></div></div>
+    <div class="actions"><a class="preview" href="__EXPERIENCE__" target="_blank" rel="noopener">Open experience ↗</a><button id="save" class="primary" disabled>Save & commit</button><button id="push" disabled>Push to main ↑</button></div>
+  </header>
+  <div id="notification" role="status" aria-live="polite" hidden></div>
+  <div class="workspace">
+    <aside>
+      <label class="search-label" for="search">Find copy</label>
+      <input id="search" type="search" placeholder="Search words, labels, or files…" autocomplete="off">
+      <div class="filters"><label><input id="changed" type="checkbox"> Only my changes</label><label><input id="all-strings" type="checkbox"> Include additional strings</label></div>
+      <nav id="sections" aria-label="Copy sections"></nav>
+      <div class="sidebar-footer"><button id="reload">Reload source ↻</button><p id="catalog-count">Reading the experience…</p></div>
+    </aside>
+    <main>
+      <section class="editor-heading"><div><p class="eyebrow">THE EXPERIENCE, IN WORDS</p><h2 id="section-title">All copy</h2><p id="section-description">For live previews, open the experience and use Pause & edit copy (Ctrl/⌘ Shift E). Click any words or world object to edit them in place.</p></div><span id="field-count" class="count"></span></section>
+      <div id="fields"><p class="empty">Loading your copy…</p></div>
+    </main>
+    <section class="revision" aria-label="Revision and publishing">
+      <div><p class="eyebrow">YOUR REVISION</p><h2 id="change-count">No changes yet</h2><p>Edits appear in the experience after saving.</p></div>
+      <label for="message">Commit message <span class="optional">optional</span></label><input id="message" type="text" maxlength="300" placeholder="What did you change?">
+      <div id="changed-list"></div>
+      <div class="git"><p class="eyebrow">READY TO PUSH</p><p id="git-status">Checking repository…</p><p id="remote"></p><details id="pending" hidden><summary id="pending-summary">Pending commits</summary><ul id="commits"></ul></details><button id="refresh-status">Refresh Git status ↻</button></div>
+      <p class="local-note">Save creates a local commit. Push sends the pending commits to main.</p>
+    </section>
+  </div>
+</body>
+</html>
