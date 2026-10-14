@@ -175,6 +175,11 @@ function handleTap(x: number, y: number, alt = false) {
     emit({ type: 'release-camera' });
     return;
   }
+  // looking out from the telescope: the first tap looks away
+  if (runtime.cam.focus) {
+    emit({ type: 'release-camera' });
+    return;
+  }
   if (g.stage !== 'world') return;
   if (g.usingCatch) {
     const target = pickInteractables(x, y, 1, true)[0];
@@ -474,7 +479,8 @@ export function Interaction() {
         else if (g.inspecting) {
           g.inspect(null);
           emit({ type: 'release-camera' });
-        } else if (g.dialogue) g.setDialogue(null);
+        } else if (runtime.cam.focus) emit({ type: 'release-camera' });
+        else if (g.dialogue) g.setDialogue(null);
         else if (g.tab) g.setTab(null);
         else g.select(null);
       }

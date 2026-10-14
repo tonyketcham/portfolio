@@ -8,6 +8,7 @@ import { runtime, sayOverhead } from '../state/runtime';
 import { skillById } from '../state/skills';
 import { gameState, useGame } from '../state/store';
 import { parseChatEffects } from './chatEffects';
+import { profile } from '@/content/profile';
 import { DIALOGUE, type Speaker } from './dialogues';
 import type { CreatureSpec } from '../creatures/spec';
 import { CreaturePortrait } from './CreaturePortrait';
@@ -212,7 +213,7 @@ function ChatHead({ speaker, creature }: { speaker: Speaker; creature?: Creature
   );
 }
 
-const NAMES: Record<Speaker, string> = { tony: 'Tony', player: 'Toe Knee', card: 'Business card', narrator: '', creature: '' };
+const NAMES: Record<Speaker, string> = { tony: profile.handle, player: 'Toe Knee', card: 'Business card', narrator: '', creature: '' };
 
 export function Dialogue() {
   const nodeId = useGame((s) => s.dialogue);

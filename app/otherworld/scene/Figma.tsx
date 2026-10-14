@@ -17,7 +17,7 @@ import { emit, sfx } from '../state/events';
 import { npcSay, runtime } from '../state/runtime';
 import { gameState } from '../state/store';
 import type { Fixture } from '../world/map';
-import { lambert, useFixture, useReveal } from './Fixtures';
+import { lambert, useFixture, useReveal } from './fixtureHooks';
 import { beat } from './beat';
 import { Label } from './Label';
 import { Revealed } from './Revealed';

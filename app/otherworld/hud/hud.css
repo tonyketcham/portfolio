@@ -2509,3 +2509,171 @@ button.ow-inv-slot:active {
 .ow-prayer-tip span:first-child {
   color: #5a3a00;
 }
+
+/* ── the book (Tony's README): an old-school book interface ──────────────── */
+.ow-book-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: rgba(0, 0, 0, 0.35);
+}
+.ow-book {
+  --ow-book-ink: #2a1a0c;
+  --ow-book-red: #7f1d1d;
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: min(820px, calc(100vw - 24px));
+  height: min(540px, calc(100dvh - var(--ow-tabbar-h) - 48px));
+  padding: 16px 18px 40px;
+  background: linear-gradient(180deg, #5b3a1e, #3f2814);
+  border: 2px solid #120a04;
+  border-radius: 6px;
+  box-shadow:
+    inset 2px 2px 0 #8a5f37,
+    inset -2px -2px 0 #1d1108,
+    0 18px 40px rgba(0, 0, 0, 0.55);
+  animation: ow-drop-in 0.22s both;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.ow-book-spread {
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(var(--per, 2), 1fr);
+  gap: 0;
+  background: #e9dbb5;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px #b79b66, inset 0 0 28px rgba(120, 86, 40, 0.35);
+}
+.ow-book[data-per='1'] .ow-book-spread {
+  --per: 1;
+}
+.ow-book-page {
+  position: relative;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 26px 30px;
+  color: var(--ow-book-ink);
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-size: 15px;
+  line-height: 1.5;
+  overscroll-behavior: contain;
+}
+.ow-book[data-per='2'] .ow-book-page:first-child {
+  background: linear-gradient(90deg, transparent 88%, rgba(110, 76, 34, 0.22));
+}
+.ow-book[data-per='2'] .ow-book-page:last-child {
+  background: linear-gradient(270deg, transparent 88%, rgba(110, 76, 34, 0.22));
+}
+.ow-book-page p {
+  margin: 0 0 0.8em;
+}
+.ow-book-title {
+  margin: 0 0 4px;
+  font-family: var(--ow-black);
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.15;
+  color: var(--ow-book-red);
+}
+.ow-book-subtitle {
+  font-family: var(--ow-pixel);
+  font-size: 13px;
+  color: #6b4a22;
+}
+.ow-book-draft {
+  display: inline-block;
+  padding: 0 6px;
+  font-family: var(--ow-mono);
+  font-size: 10px;
+  color: #1d4ed8;
+  border: 1px dashed #1d4ed8;
+  border-radius: 3px;
+}
+.ow-book-folio {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--ow-pixel);
+  font-size: 12px;
+  color: #8a6a3e;
+}
+.ow-book-contents,
+.ow-book-contents-sub,
+.ow-book-links {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ow-book-contents-sub {
+  margin: 2px 0 4px 14px;
+  font-size: 13px;
+}
+.ow-book-contents button,
+.ow-book-links a {
+  padding: 2px 0;
+  text-align: left;
+  color: var(--ow-book-ink);
+  text-decoration: underline;
+  text-decoration-color: rgba(127, 29, 29, 0.35);
+  text-underline-offset: 3px;
+}
+.ow-book-contents button:hover,
+.ow-book-links a:hover {
+  color: var(--ow-book-red);
+}
+.ow-book-links li {
+  margin-bottom: 6px;
+}
+.ow-book-tick {
+  color: #166534;
+}
+.ow-book-turn,
+.ow-book-close {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 26px;
+  font-size: 13px;
+  color: #fde68a;
+  background: #3a2412;
+  border: 1px solid #120a04;
+  border-radius: 3px;
+  box-shadow: inset 1px 1px 0 #8a5f37;
+}
+.ow-book-turn:disabled {
+  opacity: 0.35;
+}
+.ow-book-prev {
+  left: 18px;
+  bottom: 8px;
+}
+.ow-book-next {
+  right: 18px;
+  bottom: 8px;
+}
+.ow-book-close {
+  right: -10px;
+  top: -10px;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+}
+@media (max-width: 759px) {
+  .ow-book {
+    padding: 10px 10px 38px;
+  }
+  .ow-book-page {
+    padding: 16px 16px 28px;
+  }
+  .ow-book-close {
+    right: 4px;
+    top: 4px;
+  }
+}

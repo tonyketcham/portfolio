@@ -7,11 +7,14 @@
  * x ∈ [i − HALF, i − HALF + 1], z ∈ [j − HALF, j − HALF + 1].
  * Corner heights live on a (SIZE+1)² lattice, like an old-school heightmap.
  */
+import { profile } from '@/content/profile';
+import { timeline, zoneForRole } from '@/content/timeline';
 import { works, tagColors, type Work } from '@/content/works';
 import { FISHING_SPOTS, POND } from '@/content/fishing';
 // Only the island's own zones: off-island ones (the basement) are laid out by their place.
 import { islandZones as zones, zoneById, type Zone } from '@/content/zones';
 import { clamp, fbm, hashString, lerp, mulberry32, smoothstep } from '../lib/random';
+import { buildMountain, mountainHeight, tierRadius, type Mountain } from './mountain';
 
 export const SIZE = 72;
 export const HALF = SIZE / 2;
@@ -30,6 +33,7 @@ export const T = {
   DarkMoss: 9,
   Canvas: 10,
   Water: 11,
+  Rock: 12,
 } as const;
 export type TileKind = (typeof T)[keyof typeof T];
 
@@ -70,7 +74,14 @@ export type FixtureKind =
   // the basement
   | 'ladder'
   | 'decks'
-  | 'flyer';
+  | 'flyer'
+  // the hill
+  | 'plinth'
+  | 'pedestal'
+  | 'note'
+  | 'stone'
+  | 'scope'
+  | 'mailbox';
 
 export interface Fixture {
   id: string;
@@ -82,6 +93,8 @@ export interface Fixture {
   y: number;
   yaw: number;
   label?: string;
+  /** The chapter (content/profile.ts) or role (content/timeline.ts) it holds. */
+  ref?: string;
   /** Tile to stand on when interacting. */
   approach: [number, number];
 }
@@ -135,6 +148,10 @@ export interface WorldMap {
   props: Props;
   layers: LayerNode[];
   spawn: [number, number];
+  /** Hills raised under zones with `elevation`. */
+  mountains: Mountain[];
+  /** Where a teleport into a zone lands, when "just inside, facing spawn" would be a cliff. */
+  landings: Record<string, [number, number]>;
 }
 
 // ── coordinate helpers ──────────────────────────────────────────────────────
@@ -208,6 +225,7 @@ function generate(): WorldMap {
   const blocked = new Uint8Array(SIZE * SIZE);
   const zoneIndex = new Int8Array(SIZE * SIZE).fill(-1);
   const rand = mulberry32(SEED);
+  const mountains = zones.filter((zone) => zone.elevation).map(buildMountain);
 
   // 1. Island silhouette + rolling hills
   for (let cj = 0; cj <= SIZE; cj++) {
@@ -222,14 +240,18 @@ function generate(): WorldMap {
         const dz = Math.hypot(x - zone.center[0], z - zone.center[1]);
         l = Math.max(l, smoothstep(zone.radius + 3.5, zone.radius + 0.5, dz));
       }
+      for (const m of mountains) l = Math.max(l, smoothstep(m.footprint + 2, m.footprint - 1, Math.hypot(x - m.cx, z - m.cz)));
       const hills = (fbm(x * 0.075, z * 0.075, SEED + 3, 4) - 0.42) * 2.6;
       let h = hills * l + (l - 1) * 1.4;
       // Flatten each zone into a gentle pad so frames sit level.
       for (const zone of zones) {
+        if (zone.elevation) continue;
         const dz = Math.hypot(x - zone.center[0], z - zone.center[1]);
         const f = smoothstep(zone.radius + 2.5, zone.radius - 1, dz);
         h = lerp(h, zone.biome === 'mushroom' ? 0.05 : 0.18, f);
       }
+      // Hills go on last: ledges, cliffs and the ramp.
+      for (const m of mountains) h = mountainHeight(m, x, z, h).h;
       heights[cornerIndex(ci, cj)] = h;
       land[cornerIndex(ci, cj)] = l;
     }
@@ -285,11 +307,30 @@ function generate(): WorldMap {
               if (wet) blocked[k] = 1;
               break;
             }
+            case 'summit':
+              kind = d < 2.4 && n > 0.42 ? T.Ruin : T.Grass;
+              break;
           }
         }
       });
       tiles[k] = kind;
     }
+  }
+
+  // Cliffs: on a hill, any tile too steep to stand on is bare stone, and blocked.
+  for (const m of mountains) {
+    for (let j = 0; j < SIZE; j++)
+      for (let i = 0; i < SIZE; i++) {
+        const k = tileIndex(i, j);
+        if (tiles[k] === T.Void) continue;
+        const [x, z] = tileCenter(i, j);
+        if (Math.hypot(x - m.cx, z - m.cz) > m.footprint) continue;
+        const c = [heights[cornerIndex(i, j)], heights[cornerIndex(i + 1, j)], heights[cornerIndex(i, j + 1)], heights[cornerIndex(i + 1, j + 1)]];
+        if (Math.max(...c) - Math.min(...c) > 0.72) {
+          tiles[k] = T.Rock;
+          blocked[k] = 1;
+        }
+      }
   }
 
   const markBlocked = (x: number, z: number) => {
@@ -416,7 +457,7 @@ function generate(): WorldMap {
   // spawn: the portal home, the tea stall, Tony, a signpost
   fixture({ id: 'house-portal', kind: 'house-portal', name: 'House portal', zone: 'spawn', x: 0.5, z: 0.5, yaw: 0, block: 1.1 });
   fixture({ id: 'stall', kind: 'stall', name: 'Tea stall', zone: 'spawn', x: -5.2, z: -3.4, yaw: Math.PI * 0.3, block: 0.9 });
-  fixture({ id: 'tony', kind: 'tony', name: 'Tony', zone: 'spawn', x: -2.6, z: -4.6, yaw: Math.PI * 0.15, block: 0.2 });
+  fixture({ id: 'tony', kind: 'tony', name: profile.handle, zone: 'spawn', x: -2.6, z: -4.6, yaw: Math.PI * 0.15, block: 0.2 });
   fixture({ id: 'sign', kind: 'sign', name: 'Signpost', zone: 'spawn', x: 3.5, z: -3.5, yaw: -Math.PI * 0.2, block: 0.2 });
 
   const z = (id: string) => zoneById.get(id)!.center;
@@ -459,6 +500,52 @@ function generate(): WorldMap {
   const [ax, az] = z('ring');
   fixture({ id: 'ring', kind: 'ring', name: 'Fairy ring', zone: 'ring', x: ax, z: az + 0.6, yaw: 0, block: 0, approach: tileOf(ax, az + 0.6) });
 
+  // the hill: the main component and its comment pins on the summit, the
+  // variants on the middle ledge, the timeline on the low ledge, mail at the foot
+  const stones: Fixture[] = [];
+  for (const m of mountains) {
+    const id = m.zone.id;
+    const N = -Math.PI / 2;
+    const facing = (a: number) => Math.atan2(-Math.cos(a), -Math.sin(a));
+    /** Spread n things along a ledge's walk, on its outer edge, facing in. */
+    const alongLedge = (k: number, n: number, i: number, endMargin = 0) => {
+      const l = m.ledges[k];
+      const dir = Math.sign(l.a1 - l.a0);
+      const start = l.a0 + dir * 0.2;
+      const span = Math.abs(l.a1 - dir * endMargin - start);
+      const gap = n > 1 ? Math.min(0.34, span / (n - 1)) : 0; // ~2.3 tiles apart, closer if crowded
+      const a = start + dir * gap * i;
+      const r = tierRadius(m, a, k) - 0.6;
+      return { a, r, xz: m.at(a, r), approach: tileOf(...m.at(a, r - 1.3)) };
+    };
+    const plinth = profile.chapters.find((c) => c.at === 'plinth');
+    const [px, pz] = m.at(Math.PI / 2, 0.7);
+    fixture({ id: `${id}-plinth`, kind: 'plinth', name: profile.name, zone: id, x: px, z: pz, yaw: Math.PI, block: 0.6, ref: plinth?.id });
+    const [sx, sz] = m.at(N - 0.8, 2.1);
+    fixture({ id: `${id}-scope`, kind: 'scope', name: 'Telescope', zone: id, x: sx, z: sz, yaw: Math.PI, block: 0.2, approach: tileOf(...m.at(N - 0.8, 0.9)) });
+    profile.chapters
+      .filter((c) => c.at === 'note')
+      .forEach((c, k, all) => {
+        const a = Math.PI / 2 + (k - (all.length - 1) / 2) * 0.8;
+        const [x, zz] = m.at(a, 2.2);
+        fixture({ id: `${id}-note-${c.id}`, kind: 'note', name: c.title, zone: id, x, z: zz, yaw: facing(a), block: 0.15, ref: c.id });
+      });
+    const variants = profile.chapters.filter((c) => c.at === 'variant');
+    variants.forEach((c, k) => {
+      const { a, xz, approach } = alongLedge(1, variants.length, k);
+      fixture({ id: `${id}-variant-${c.id}`, kind: 'pedestal', name: c.title, zone: id, x: xz[0], z: xz[1], yaw: facing(a), block: 0.35, ref: c.id, approach });
+    });
+    // the timeline, oldest first in walking order along the low ledge
+    timeline.forEach((role, k) => {
+      // stop short of where the ramp turns uphill, so no stone stands in the way
+      const { a, xz, approach } = alongLedge(0, timeline.length, k, 0.6);
+      fixture({ id: `${id}-role-${role.id}`, kind: 'stone', name: role.org, label: role.role, zone: id, x: xz[0], z: xz[1], yaw: facing(a), block: 0.25, ref: role.id, approach });
+      stones.push(fixtures[fixtures.length - 1]);
+    });
+    const [mbx, mbz] = m.at(N + 0.2, 10.9);
+    fixture({ id: `${id}-mailbox`, kind: 'mailbox', name: 'Mailbox', zone: id, x: mbx, z: mbz, yaw: -Math.PI / 2, block: 0.25 });
+  }
+
   // 5. Roads: fat cables from spawn to every zone. Ground becomes dirt under them.
   const edges: Edge[] = [];
   let edgeId = 0;
@@ -485,6 +572,17 @@ function generate(): WorldMap {
     const end: [number, number] = [zone.center[0] - dir[0] * (zone.radius - 1.5), zone.center[1] - dir[1] * (zone.radius - 1.5)];
     const bend = (rand() - 0.5) * len * 0.5;
     const perp: [number, number] = [-dir[1], dir[0]];
+    const hill = mountains.find((m) => m.zone === zone);
+    if (hill) {
+      // straight to the foot of the hill, then up the ramp
+      const foot: [number, number] = [hill.ramp[0][0], hill.ramp[0][1]];
+      const lead = bezier(start, [lerp(start[0], foot[0], 0.4), lerp(start[1], foot[1], 0.4)], [lerp(start[0], foot[0], 0.7), lerp(start[1], foot[1], 0.7)], foot);
+      const climb = hill.ramp.filter((_, k) => k % 2 === 0 || k === hill.ramp.length - 1);
+      const points = [...lead.slice(0, -1), ...climb.map(([x, z]) => [x, z] as [number, number])];
+      paintDirt(points, 1);
+      edges.push({ id: edgeId++, kind: 'road', a: 'zone:spawn', b: `zone:${zone.id}`, color: zone.color, weight: 3, points });
+      continue;
+    }
     const c0: [number, number] = [lerp(start[0], end[0], 0.33) + perp[0] * bend, lerp(start[1], end[1], 0.33) + perp[1] * bend];
     const c1: [number, number] = [lerp(start[0], end[0], 0.66) - perp[0] * bend * 0.6, lerp(start[1], end[1], 0.66) - perp[1] * bend * 0.6];
     const points = bezier(start, c0, c1, end);
@@ -592,6 +690,45 @@ function generate(): WorldMap {
     const audio = figBoards.find((p) => p.work.slug === 'figma-motion-audio');
     if (audio) harness('figma-motion-audio', 'reset-presents', '#6366f1', audio.port, around(trap, audio.port, 0.55, 0), -0.15);
   }
+  // 6b. The timeline: each role's stone wired to the next in date order, and
+  // across the island to the work it produced.
+  const portOf = (f: Fixture): { port: [number, number]; dir: [number, number] } => {
+    const dir: [number, number] = [Math.sin(f.yaw), Math.cos(f.yaw)];
+    return { port: [f.x + dir[0] * 0.3, f.z + dir[1] * 0.3], dir };
+  };
+  stones.forEach((stone, k) => {
+    const a = portOf(stone);
+    const next = stones[k + 1];
+    if (next) {
+      const b = portOf(next);
+      const L = Math.hypot(b.port[0] - a.port[0], b.port[1] - a.port[1]) * 0.35;
+      edges.push({
+        id: edgeId++,
+        kind: 'link',
+        a: `fixture:${stone.id}`,
+        b: `fixture:${next.id}`,
+        color: '#f59e0b',
+        weight: 2,
+        points: bezier(a.port, [a.port[0] + a.dir[0] * L, a.port[1] + a.dir[1] * L], [b.port[0] + b.dir[0] * L, b.port[1] + b.dir[1] * L], b.port, 0.3),
+      });
+    }
+    const role = timeline.find((r) => r.id === stone.ref);
+    const target = role && placements.find((p) => p.display === 'artboard' && p.work.zone === zoneForRole(role));
+    if (target) {
+      // out over the cliff edge, then across the island to the frame
+      const out: [number, number] = [-a.dir[0], -a.dir[1]];
+      const L = Math.hypot(target.port[0] - a.port[0], target.port[1] - a.port[1]) * 0.4;
+      edges.push({
+        id: edgeId++,
+        kind: 'link',
+        a: `fixture:${stone.id}`,
+        b: target.work.slug,
+        color: zoneById.get(target.work.zone)?.color ?? '#71717a',
+        weight: 2,
+        points: bezier(a.port, [a.port[0] + out[0] * L, a.port[1] + out[1] * L], [target.port[0] + target.portDir[0] * L, target.port[1] + target.portDir[1] * L], target.port, 0.35),
+      });
+    }
+  });
 
   // 7. Scatter: trees, rocks, grass tufts, amanitas
   const keepClear: [number, number, number][] = [
@@ -604,6 +741,8 @@ function generate(): WorldMap {
   const nearRoad = (x: number, z: number, r: number) =>
     edges.some((e) => e.kind === 'road' && e.points.some(([px, pz]) => (px - x) ** 2 + (pz - z) ** 2 < r * r));
   const isClear = (x: number, z: number) => keepClear.every(([cx, cz, r]) => (cx - x) ** 2 + (cz - z) ** 2 > r * r);
+  // nothing grows or rolls onto a hill's ledges: they're the only way round
+  const onLedges = (x: number, z: number) => mountains.some((m) => Math.hypot(x - m.cx, z - m.cz) < m.tiers[0].r + 0.8);
 
   const trees: TreeProp[] = [];
   const rocks: Props['rocks'] = [];
@@ -628,7 +767,8 @@ function generate(): WorldMap {
         coast < 0.9 &&
         zone?.biome !== 'plaza' &&
         isClear(x, zz) &&
-        !nearRoad(x, zz, 1.6)
+        !nearRoad(x, zz, 1.6) &&
+        !onLedges(x, zz)
       ) {
         const grove = zone?.biome === 'grove' ? 0.08 : 0;
         const forestRing = !zone && coast > 0.6 ? 0.07 : 0;
@@ -647,8 +787,13 @@ function generate(): WorldMap {
           continue;
         }
       }
+      // boulders on the cliffs
+      if (kind === T.Rock && isClear(x, zz) && !nearRoad(x, zz, 1.4) && rand() < 0.16) {
+        rocks.push({ x, z: zz, scale: 0.35 + rand() * 0.45, rot: rand() * Math.PI * 2 });
+        continue;
+      }
       // rocks near coast and in the ruins
-      if (blocked[k] === 0 && (coast > 0.82 || zone?.biome === 'ruins') && isClear(x, zz) && rand() < 0.05) {
+      if (blocked[k] === 0 && (coast > 0.82 || zone?.biome === 'ruins') && !onLedges(x, zz) && isClear(x, zz) && rand() < 0.05) {
         rocks.push({ x, z: zz, scale: 0.3 + rand() * 0.5, rot: rand() * Math.PI * 2 });
         if (rocks[rocks.length - 1].scale > 0.55) blocked[k] = 1;
         continue;
@@ -733,6 +878,13 @@ function generate(): WorldMap {
 
   // arrive facing the house portal, just in front of it
   const spawn = nearestFree(worldToTile(0.5, 2.6), [0, 0]);
+  // teleports onto a hill land at the top of its ramp
+  const landings = Object.fromEntries(
+    mountains.map((m) => {
+      const [x, z] = m.ramp[m.ramp.length - 1];
+      return [m.zone.id, nearestFree(worldToTile(x, z), [m.cx, m.cz])];
+    })
+  );
 
   return {
     heights,
@@ -746,6 +898,8 @@ function generate(): WorldMap {
     props: { trees, rocks, grass, shrooms },
     layers,
     spawn,
+    mountains,
+    landings,
   };
 }
 

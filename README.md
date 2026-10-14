@@ -59,8 +59,12 @@ The house portal by spawn takes you home.
 - **Layers tab** is the island as a design file: hide or lock any layer.
 - **Text tool (T)** drops physical 5×7 voxel letters. **Move tool (V)** lets you grab and throw
   props. **⌘Z** rewinds the physics with a VHS pass.
+- **Toe Knee (Main component)**, the hill south of spawn: climb the ramp past the timeline stones
+  (imported from LinkedIn) and the variant statues to the main component on the summit. Each
+  one opens Toe Knee's README in an old-school book interface; the telescope at the top zooms the
+  camera out to fit the whole island, and the mailbox at the foot has the contact links.
 - Skills (with the classic XP curve; Cats starts at 99), inventory, quests, a tea stall to steal
-  from, Tony to talk to, an amanita ring that makes the pixels breathe, bezier-handle butterflies, a fractal tree
+  from, Toe Knee (Tony) to talk to, an amanita ring that makes the pixels breathe, bezier-handle butterflies, a fractal tree
   you can water, and a curry pot.
 - **404 Pond** is tucked away on the island's west side, between the grove and the ruins.
   Take the fishing rod lying on the bank, then click a bubbling tile. The pixel icon above it
@@ -163,7 +167,7 @@ Useful URLs: `/?intro` forces the intro, `/?skip` skips it, `/?dial` shows DialK
 ### Map of the code
 
 ```
-content/            works, zones, profile, house, cat: the only files you need to touch to add art
+content/            works, zones, profile, timeline, house, cat: the only files you need to touch to add art
 app/otherworld/
   world/            island generation, places (island / house), A* pathfinding (pure TS)
   house/            the POH: room catalog, layout, walls + floors, garden courtyard, furniture

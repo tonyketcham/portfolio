@@ -115,12 +115,14 @@ function WorldClock() {
     globalUniforms.uMushroom.value += (mushroomTarget - globalUniforms.uMushroom.value) * Math.min(1, dt * 2);
 
     // Fog rides with the zoom so the player's surroundings are always clear.
-    const zoomOffset = Math.max(0, runtime.cam.distance - 15);
+    const zoomOffset = Math.max(0, Math.max(runtime.cam.distance, runtime.cam.focus?.distance ?? 0) - 15);
     const inHouse = runtime.location === 'house';
     // Underground: no sun, a dim cold fill, and the fog goes nearly black.
     const below = runtime.location === 'basement';
-    globalUniforms.uFogNear.value = t.World.fogNear + zoomOffset + (inHouse || below ? 8 : 0);
-    globalUniforms.uFogFar.value = t.World.fogFar + zoomOffset * 1.4 + (inHouse || below ? 20 : 0);
+    // high ground sees further: the fog lifts as you climb
+    const lift = inHouse || below ? 0 : Math.max(0, runtime.player.pos.y - 0.6) * 4;
+    globalUniforms.uFogNear.value = t.World.fogNear + zoomOffset + lift + (inHouse || below ? 8 : 0);
+    globalUniforms.uFogFar.value = t.World.fogFar + zoomOffset * 1.4 + lift * 1.5 + (inHouse || below ? 20 : 0);
     fog.color.copy(sky.fog);
     if (below) fog.color.setRGB(0.008, 0.007, 0.016);
     fog.near = globalUniforms.uFogNear.value;

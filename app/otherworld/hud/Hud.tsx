@@ -3,6 +3,7 @@
 import { useGame } from '../state/store';
 import { cancelCatchUse } from '../state/catch-actions';
 import { itemName } from '../state/items';
+import { Book } from './Book';
 import { Boot, IntroChrome, TopBar } from './Chrome';
 import { Chat, ContextMenu, Dialogue, LevelUp, XpDrops } from './Game';
 import { BuildMenu, LoadingBox } from './HouseHud';
@@ -54,6 +55,7 @@ export function Hud() {
             {!dialogue && !inspecting && <SidePanel />}
             {!inspecting && <TabBar />}
             <Dialogue />
+            <Book />
             <Inspector />
             <LevelUp />
             <BuildMenu />

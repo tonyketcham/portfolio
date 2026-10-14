@@ -17,7 +17,8 @@ export type Biome =
   | 'ruins' // cracked stone, broken frames
   | 'mushroom' // dark moss, fairy ring
   | 'canvas' // light-grey design canvas, multiplayer cursors
-  | 'pond'; // a tucked-away fishing backwater
+  | 'pond' // a tucked-away fishing backwater
+  | 'summit'; // a terraced hill: grass ledges, stone cliffs, a ramp up the front
 
 export interface Zone {
   id: string;
@@ -37,6 +38,11 @@ export interface Zone {
    * Their `center` and `radius` are ignored: that place lays them out.
    */
   place?: 'basement';
+  /**
+   * Raise the zone into a terraced hill this many units tall (the player is ~1.75).
+   * Its road becomes a switchback ramp up the front; the cliffs can't be walked.
+   */
+  elevation?: number;
 }
 
 export const zones: Zone[] = [
@@ -113,6 +119,16 @@ export const zones: Zone[] = [
     biome: 'concrete',
     color: '#6366f1',
     place: 'basement',
+  },
+  {
+    id: 'about',
+    name: 'Toe Knee (Main component)',
+    arrival: 'Every Toe Knee on this island is an instance of this one.',
+    center: [0, 19.5],
+    radius: 5.2,
+    biome: 'summit',
+    color: '#f59e0b',
+    elevation: 4.2,
   },
 ];
 

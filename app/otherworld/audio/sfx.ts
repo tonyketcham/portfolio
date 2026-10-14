@@ -201,6 +201,11 @@ function play(name: SfxName, pitch = 1) {
       tone('sine', 1170, 390, 0.3, 0.035, 0.02);
       noise(0.32, 0.03, 'bandpass', 3200, 600);
       break;
+    case 'page':
+      // a dry paper flick
+      noise(0.12, 0.05, 'highpass', 2600 * p, 5200 * p);
+      noise(0.06, 0.03, 'bandpass', 1400 * p, 900 * p, 0.05);
+      break;
   }
 }
 

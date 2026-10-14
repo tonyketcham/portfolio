@@ -224,7 +224,7 @@ export function TopBar() {
       {menu && (
         <div className="ow-filemenu ow-panel" role="menu" onClick={() => setMenu(false)}>
           <button role="menuitem" onClick={() => setDialogue('card')}>
-            About Tony…
+            About Toe Knee…
           </button>
           <button role="menuitem" onClick={() => togglePlugin('sound')}>
             Sound: {sound ? 'on' : 'off'}

@@ -1,12 +1,13 @@
 # Content: hanging art in Untitled-1
 
-Everything the world shows comes from four files:
+Everything the world shows comes from five files:
 
 | File | What it holds |
 | --- | --- |
 | `works.ts` | Every project / piece. Adding an entry is all it takes to put it in the world. |
 | `zones.ts` | The island's regions (named like design-file layers). |
-| `profile.ts` | Name, bio lines, contact links (Tony's dialogue + the business card). |
+| `profile.ts` | Name, bio lines, contact links, and the long-form chapters on the hill. |
+| `timeline.ts` | Where Tony has worked, imported from LinkedIn: the stones on the hill. |
 | `house.ts` | The player-owned house: rooms, built furniture, and which works hang where. |
 
 ## Add a piece
@@ -70,6 +71,30 @@ A zone with more than three artboards lays them out in a horseshoe facing its ce
 (the Figma zone). A zone with `place: 'basement'` lives off the island: it gets no road or
 plateau, and `app/otherworld/world/basement.ts` lays out its works and fixtures (RESET, reached
 by the trapdoor in the Figma zone).
+## The hill (`profile.ts`, `timeline.ts`)
+
+The zone with `elevation` (Toe Knee, Main component, south of spawn) is a terraced hill. Its road
+is a ramp spiralling up it; the cliffs between ledges can't be walked. Everything on it opens
+the book (an old-school book interface; visitors keep a copy in their inventory):
+
+- `chapters` with `at: 'plinth'` are the main component on the summit (read first).
+- `at: 'variant'` puts a pedestal with a statue on the middle ledge (`prop: 'laptop' | 'teapot' | 'plotter'`).
+- `at: 'note'` puts a comment pin on the summit, for short opinions.
+- `body` is paragraphs; the book paginates them, so write as much as you like.
+- `links` are the contact page and the mailbox at the foot of the hill (`note` is its chat line).
+- The telescope on the summit frames the whole island.
+
+The timeline's roles are stones on the low ledge, wired together in date order. A role whose
+company is in `orgZones` is also wired across the island to that zone's work. To import them,
+make a CSV shaped like LinkedIn's Positions.csv (`Company Name, Title, Description, Location,
+Started On, Finished On`, dates like `Apr 2025`) from your profile's Experience page, and run:
+
+```sh
+node scripts/linkedin-timeline.mjs path/to/Positions.csv   # --dry prints instead of writing
+```
+
+It rewrites only the `// <linkedin>` block, so `orgZones` and `roleNotes` (extra paragraphs
+per role id) survive re-imports.
 
 ## Copy flags
 

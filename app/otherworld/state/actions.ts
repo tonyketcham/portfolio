@@ -42,6 +42,7 @@ export function teleportToZone(id: string) {
   const world = getWorld();
   if (id === 'spawn') return travel('island', world.spawn);
   if (id === 'pond') return travel('island', worldToTile(...POND.entry));
+  if (world.landings[id]) return travel('island', world.landings[id]);
   // Land just inside the zone on the side facing spawn.
   const [cx, cz] = zone.center;
   const len = Math.hypot(cx, cz) || 1;
@@ -144,6 +145,9 @@ export function applyItem(slot: number, verb: string) {
     }
     case 'card':
       s.setDialogue('card');
+      return;
+    case 'journal':
+      s.openBook();
       return;
     case 'handle':
       s.removeSlot(slot);
@@ -357,7 +361,7 @@ export function runDebugAction(panel: string, path: string) {
       break;
     case 'resetFurniture':
       gameState().resetHouse();
-      gameState().say('The house is back to how Tony left it.', 'system');
+      gameState().say('The house is back to how Toe Knee left it.', 'system');
       break;
     default:
       console.info('[dialkit] unhandled action', panel, path);

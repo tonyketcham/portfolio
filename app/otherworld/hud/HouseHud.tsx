@@ -118,7 +118,7 @@ export function HousePanel() {
         className="ow-btn ow-btn-quiet"
         onClick={() => {
           resetHouse();
-          gameState().say('The house is back to how Tony left it.', 'system');
+          gameState().say('The house is back to how Toe Knee left it.', 'system');
         }}
       >
         Reset furniture

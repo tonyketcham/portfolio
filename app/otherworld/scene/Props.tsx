@@ -354,7 +354,7 @@ export function Letters() {
         if (word === 'tea') g.say('The letters smell faintly of oolong.');
         if (word === 'mushroom' || word === 'amanita') g.eatMushroom(15);
         if (word === 'hello' || word === 'hi') sayOverhead('Hello to you too.', 3);
-        if (word === 'tony') g.say('Tony looks up, briefly flattered.');
+        if (word === 'tony' || word === 'toe knee') g.say('Toe Knee looks up, briefly flattered.');
       }),
     []
   );

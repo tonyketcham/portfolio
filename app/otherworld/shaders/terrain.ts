@@ -106,6 +106,7 @@ const PALETTE: Record<TileKind, [string, string]> = {
   [T.DarkMoss]: ['#2c4434', '#344e3b'],
   [T.Canvas]: ['#d4d4d8', '#dcdce0'], // the design canvas
   [T.Water]: ['#173943', '#214b53'], // pond bed, beneath the water surface
+  [T.Rock]: ['#6b645a', '#7a7266'], // cliff faces
 };
 const paletteSRGB = Object.fromEntries(
   Object.entries(PALETTE).map(([k, [a, b]]) => [

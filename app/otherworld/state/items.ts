@@ -18,7 +18,8 @@ export type ItemId =
   | 'broken-link'
   | 'old-jpeg'
   | 'undefined-fish'
-  | 'flash-site';
+  | 'flash-site'
+  | 'journal';
 
 export interface ItemDef {
   id: ItemId;
@@ -92,7 +93,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     id: 'card',
     name: 'Business card',
     primary: 'Read',
-    examine: "Tony's card. It has a tiny cursor embossed on it.",
+    examine: "Toe Knee's card. His real name is on it. It has a tiny cursor embossed on it.",
     sprite: ['........', 'wwwwwwww', 'wbwwwwww', 'wbbwkkkw', 'wbbbwwww', 'wbwwkkkw', 'wwwwwwww', '........'],
     palette: { w: '#f4f4f5', b: '#3b82f6', k: '#3f3f46' },
   },
@@ -168,10 +169,18 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     sprite: ['........', '.cccccc.', 'cmmmmmmc', 'cmwmmwmc', 'cmmwwmmc', 'cmwmmwmc', 'cmmmmmmc', '.cccccc.'],
     palette: { c: '#a8a29e', m: '#7c3aed', w: '#c4b5fd' },
   },
+  journal: {
+    id: 'journal',
+    name: "Toe Knee's README",
+    primary: 'Read',
+    examine: 'A leather-bound copy of the main component. The spine says README.md.',
+    sprite: ['........', '.bbbbbb.', '.byyyyp.', '.bbbbbp.', '.byybbp.', '.bbbbbp.', '.bbbbbb.', '........'],
+    palette: { b: '#7c2d12', y: '#facc15', p: '#f5f0e1' },
+  },
 };
 
 /** Zone ids a teleport tablet can point at; the tablet's `variant` indexes this. */
-export const TABLET_ZONES = ['house', 'spawn', 'modyfi', 'reset', 'garden', 'ruins', 'ring', 'figma'] as const;
+export const TABLET_ZONES = ['house', 'spawn', 'modyfi', 'reset', 'garden', 'ruins', 'ring', 'figma', 'about'] as const;
 
 export function tabletZone(stack: ItemStack) {
   return TABLET_ZONES[(stack.variant ?? 0) % TABLET_ZONES.length];

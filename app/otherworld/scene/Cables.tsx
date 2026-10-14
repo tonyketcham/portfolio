@@ -23,6 +23,9 @@ export function Cables() {
     const focus = new Set<string>();
     const hover = runtime.hoverId?.startsWith('work:') ? runtime.hoverId.slice(5) : null;
     if (hover) focus.add(hover);
+    // timeline stones light their wires too
+    if (runtime.hoverId?.startsWith('fixture:')) focus.add(runtime.hoverId);
+    if (g.selected?.startsWith('fixture:')) focus.add(g.selected);
     if (g.inspecting) focus.add(g.inspecting);
     if (g.selected?.startsWith('work:')) focus.add(g.selected.slice(5));
     let dirty = false;

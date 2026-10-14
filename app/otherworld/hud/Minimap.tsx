@@ -32,6 +32,7 @@ const MAP_COLORS: Record<TileKind, string> = {
   [T.DarkMoss]: '#2b3f30',
   [T.Canvas]: '#c7c7cc',
   [T.Water]: '#397f90',
+  [T.Rock]: '#5d574e',
 };
 
 function useBaseImage() {

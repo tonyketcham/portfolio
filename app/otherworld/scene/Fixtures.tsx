@@ -1,11 +1,10 @@
 'use client';
 
-import type { RefObject } from 'react';
 /**
  * Hand-built set pieces: the tea stall, Tony, the signpost, Minky Hut Jr.,
  * the p5 fractal tree and curry pot, the ruins, and the fairy ring. RESET's
  * year monoliths and door are here too, but stand in the basement (Basement.tsx);
- * the Figma zone's pieces live in Figma.tsx.
+ * the Figma zone's pieces live in Figma.tsx, and the hill's in Hill.tsx.
  */
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, CylinderCollider, RigidBody } from '@react-three/rapier';
@@ -22,58 +21,18 @@ import { cssFont } from '../lib/textures';
 import { toggleBuildMode, travel } from '../state/actions';
 import { emit, on, sfx } from '../state/events';
 import { TEAS } from '../state/items';
-import { npcSay, registerInteractable, runtime, type InteractAction, type Interactable } from '../state/runtime';
-import { gameState, useGame } from '../state/store';
+import { npcSay, runtime } from '../state/runtime';
+import { gameState } from '../state/store';
 import { getWorld, type Fixture } from '../world/map';
-import { revealScale } from './globals';
 import { beat } from './beat';
-import { Label } from './Label';
+import { lambert, useFixture, useReveal } from './fixtureHooks';
 import { AgentSwitchboard, Cursors, FigmaHub, Timeline, Trapdoor } from './Figma';
+import { CommentPin, Mailbox, Pedestal, Plinth, Stone, Telescope } from './Hill';
+import { Label } from './Label';
 import { Revealed } from './Revealed';
 
-export function useReveal(fixture: Fixture, ref: RefObject<THREE.Group | null>) {
-  const hidden = useGame((s) => !!s.hidden[`fixture:${fixture.id}`]);
-  useFrame(() => {
-    if (!ref.current) return;
-    const s = revealScale(fixture.x, fixture.z);
-    ref.current.scale.setScalar(Math.max(0.0001, s));
-    ref.current.visible = s > 0.001 && !hidden;
-  });
-}
-
-export function useFixture(
-  fixture: Fixture,
-  ref: RefObject<THREE.Object3D | null>,
-  def: { name?: string; tone?: 'npc' | 'object'; examine: string; actions: InteractAction[]; level?: number; dims?: string; passive?: boolean },
-  deps: unknown[] = []
-) {
-  useEffect(() => {
-    // so a ray hitting any mesh inside finds its way back here
-    if (ref.current) ref.current.userData.interactable = `fixture:${fixture.id}`;
-  });
-  useEffect(
-    () =>
-      registerInteractable({
-        id: `fixture:${fixture.id}`,
-        catchTarget: ({ 'fallen-frame': 'frame', 'house-portal': 'portal', ring: 'portal', stall: 'tea',
-          'figma-hub': 'machine', agents: 'machine' } as Partial<Record<Fixture['kind'], Interactable['catchTarget']>>)[fixture.kind],
-        passive: def.passive,
-        name: def.name ?? fixture.name,
-        tone: def.tone ?? 'object',
-        level: def.level,
-        layer: `fixture:${fixture.id}`,
-        object: () => ref.current,
-        examine: def.examine,
-        approach: () => fixture.approach,
-        dimensions: def.dims ? () => def.dims! : undefined,
-        actions: def.actions,
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fixture, ...deps]
-  );
-}
-
-export const lambert = (color: string) => new THREE.MeshLambertMaterial({ color, flatShading: true });
+// Basement.tsx builds its set pieces with these too.
+export { lambert, useFixture, useReveal };
 
 // ── Tea stall ────────────────────────────────────────────────────────────────
 function TeaStall({ fixture }: { fixture: Fixture }) {
@@ -103,13 +62,13 @@ function TeaStall({ fixture }: { fixture: Fixture }) {
         run: () => {
           const g = gameState();
           if (stockRef.current <= 0) {
-            g.say('The stall is empty. Tony is brewing more.');
+            g.say('The stall is empty. Toe Knee is brewing more.');
             return;
           }
           g.say('You attempt to steal a cup of tea…');
           window.setTimeout(() => {
             if (Math.random() < 0.15) {
-              g.say('You fumble the cup. Tony pretends not to notice.');
+              g.say('You fumble the cup. Toe Knee pretends not to notice.');
               sfx('error');
               return;
             }
@@ -228,13 +187,22 @@ const TONY_LINES = [
   'Follow the wires. They know where things are.',
   'Undo works on physics. Try it.',
   'I should really hang the rest of the art.',
+  'The view from the hill is better. I would know.',
+  'Everything on this island has a timeline. I checked.',
+  'Ease in, ease out. Words to live by.',
 ];
+
+const GREETINGS = ['Oh, hey! Another me.', 'Hello, instance.', 'Nice shirt.', 'Welcome back!'];
 
 function Tony({ fixture }: { fixture: Fixture }) {
   const group = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
+  const arm = useRef<THREE.Group>(null);
   const nextLine = useRef(8);
+  /** Seconds of wave left; waves when you walk up to him. */
+  const wave = useRef(0);
+  const wasNear = useRef(false);
   useReveal(fixture, group);
 
   const anchor = () => (group.current ? new THREE.Vector3(fixture.x, fixture.y + 2.15, fixture.z) : null);
@@ -242,10 +210,18 @@ function Tony({ fixture }: { fixture: Fixture }) {
   useFixture(fixture, group, {
     tone: 'npc',
     level: 99,
-    examine: 'A design engineer. Builds design tools. Smells faintly of pu-erh.',
+    examine: 'A software engineer at Figma. Builds design tools. Smells faintly of pu-erh.',
     dims: '6′ of design engineer',
     actions: [
       { verb: 'Talk-to', approach: true, run: () => gameState().setDialogue('tony') },
+      {
+        verb: 'Wave-at',
+        run: () => {
+          wave.current = 2.4;
+          npcSay('tony', 'o/', anchor, 2);
+          gameState().addXp('curiosity', 1);
+        },
+      },
       {
         verb: 'Trade',
         approach: true,
@@ -264,6 +240,9 @@ function Tony({ fixture }: { fixture: Fixture }) {
       hair: lambert('#a8754a'),
       beanie: lambert('#8a5a32'),
       glass: new THREE.MeshBasicMaterial({ color: '#1c1917' }),
+      strap: lambert('#27272a'),
+      badge: lambert('#fafafa'),
+      badgeStripe: new THREE.MeshBasicMaterial({ color: '#a855f7' }),
       cap: lambert('#dc2626'),
       stem: lambert('#f3ead8'),
     }),
@@ -273,6 +252,12 @@ function Tony({ fixture }: { fixture: Fixture }) {
   useFrame((state, dt) => {
     const t = state.clock.elapsedTime;
     if (body.current) body.current.position.y = Math.sin(t * 1.8) * 0.012;
+    wave.current = Math.max(0, wave.current - dt);
+    if (arm.current) {
+      const up = Math.min(1, wave.current * 3); // raise, wave, lower
+      const target = up * (-2.5 + Math.sin(t * 11) * 0.35);
+      arm.current.rotation.z += (target - arm.current.rotation.z) * Math.min(1, dt * 12);
+    }
     if (head.current && group.current) {
       const p = runtime.player.pos;
       const dx = p.x - fixture.x;
@@ -282,6 +267,14 @@ function Tony({ fixture }: { fixture: Fixture }) {
       const wrapped = Math.atan2(Math.sin(target), Math.cos(target));
       const clampTarget = Math.max(-1.1, Math.min(1.1, wrapped));
       head.current.rotation.y += (clampTarget - head.current.rotation.y) * Math.min(1, dt * 4);
+      // walk up to him and he waves
+      const close = dx * dx + dz * dz < 20;
+      if (close && !wasNear.current && gameState().stage === 'world' && !gameState().dialogue) {
+        wave.current = 2.4;
+        nextLine.current = Math.max(nextLine.current, 6);
+        npcSay('tony', GREETINGS[Math.floor(Math.random() * GREETINGS.length)], anchor, 2.5);
+      }
+      wasNear.current = close;
       nextLine.current -= dt;
       if (near && nextLine.current < 0 && gameState().stage === 'world' && !gameState().dialogue) {
         nextLine.current = 18 + Math.random() * 20;
@@ -311,15 +304,37 @@ function Tony({ fixture }: { fixture: Fixture }) {
             <mesh position={[s * 0.19, 1.12, 0.02]} material={mats.jacket}>
               <boxGeometry args={[0.13, 0.7, 0.3]} />
             </mesh>
-            <mesh
-              position={[s * 0.31, s > 0 ? 1.0 : 1.06, s > 0 ? 0.16 : 0]}
-              rotation-x={s > 0 ? -1.0 : 0}
-              material={mats.jacket}
-            >
-              <boxGeometry args={[0.12, 0.56, 0.13]} />
-            </mesh>
+            {s > 0 ? (
+              <mesh position={[0.31, 1.0, 0.16]} rotation-x={-1.0} material={mats.jacket}>
+                <boxGeometry args={[0.12, 0.56, 0.13]} />
+              </mesh>
+            ) : (
+              // the free arm hangs from the shoulder so it can wave
+              <group ref={arm} position={[-0.31, 1.34, 0]}>
+                <mesh position-y={-0.28} material={mats.jacket}>
+                  <boxGeometry args={[0.12, 0.56, 0.13]} />
+                </mesh>
+                <mesh position-y={-0.6} material={mats.skin}>
+                  <boxGeometry args={[0.1, 0.1, 0.1]} />
+                </mesh>
+              </group>
+            )}
           </group>
         ))}
+        {/* work badge on a lanyard */}
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[s * 0.06, 1.27, 0.135]} rotation-z={s * 0.35} material={mats.strap}>
+            <boxGeometry args={[0.018, 0.2, 0.01]} />
+          </mesh>
+        ))}
+        <group position={[0, 1.1, 0.14]}>
+          <mesh material={mats.badge}>
+            <boxGeometry args={[0.09, 0.12, 0.008]} />
+          </mesh>
+          <mesh material={mats.badgeStripe} position={[0, 0.035, 0.005]}>
+            <planeGeometry args={[0.09, 0.025]} />
+          </mesh>
+        </group>
         {/* the amanita, held out like in the photo */}
         <group position={[0.31, 0.98, 0.46]}>
           <mesh material={mats.stem} position-y={0.06}>
@@ -964,6 +979,18 @@ export function Fixtures() {
             return <DataPoints key={f.id} fixture={f} />;
           case 'ring':
             return <FairyRing key={f.id} fixture={f} />;
+          case 'plinth':
+            return <Plinth key={f.id} fixture={f} />;
+          case 'pedestal':
+            return <Pedestal key={f.id} fixture={f} />;
+          case 'note':
+            return <CommentPin key={f.id} fixture={f} />;
+          case 'stone':
+            return <Stone key={f.id} fixture={f} />;
+          case 'scope':
+            return <Telescope key={f.id} fixture={f} />;
+          case 'mailbox':
+            return <Mailbox key={f.id} fixture={f} />;
           default:
             return null;
         }

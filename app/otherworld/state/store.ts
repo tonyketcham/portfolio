@@ -112,6 +112,10 @@ interface GameState {
   menu: MenuState | null;
   inspecting: string | null;
   dialogue: string | null;
+  /** The open book, at a page key (see hud/bookPages.ts); '' is the contents. */
+  book: string | null;
+  /** Chapters and roles read in the book, by key. */
+  bookRead: Record<string, true>;
   textPrompt: boolean;
   chat: ChatLine[];
   chatOpen: boolean;
@@ -173,6 +177,9 @@ interface GameState {
   closeMenu: () => void;
   inspect: (slug: string | null) => void;
   setDialogue: (node: string | null) => void;
+  openBook: (at?: string) => void;
+  closeBook: () => void;
+  markRead: (key: string) => boolean;
   setTextPrompt: (open: boolean) => void;
   say: (text: string, kind?: ChatLine['kind'], from?: string) => void;
   setChatOpen: (open: boolean) => void;
@@ -256,6 +263,8 @@ export const useGame = create<GameState>()(
       menu: null,
       inspecting: null,
       dialogue: null,
+      book: null,
+      bookRead: {},
       textPrompt: false,
       chat: [],
       chatOpen: true,
@@ -316,6 +325,16 @@ export const useGame = create<GameState>()(
       closeMenu: () => set({ menu: null }),
       inspect: (slug) => set({ inspecting: slug, menu: null, tab: slug ? null : get().tab, usingCatch: null }),
       setDialogue: (dialogue) => set({ dialogue, menu: null, usingCatch: null }),
+      openBook: (at = '') => {
+        sfx('page');
+        set({ book: at, menu: null, dialogue: null, usingCatch: null });
+      },
+      closeBook: () => set({ book: null }),
+      markRead: (key) => {
+        if (get().bookRead[key]) return false;
+        set((s) => ({ bookRead: { ...s.bookRead, [key]: true } }));
+        return true;
+      },
       setTextPrompt: (textPrompt) => set({ textPrompt }),
       say: (text, kind = 'game', from) =>
         set((s) => ({ chat: [...s.chat.slice(-60), { id: lineId++, kind, from, text }] })),
@@ -451,6 +470,7 @@ export const useGame = create<GameState>()(
           inventory: starterInventory(),
           usingCatch: null,
           quests: {},
+          bookRead: {},
           markers: {},
           introSeen: false,
           effects: cloneStack('canvas'),
@@ -552,6 +572,7 @@ export const useGame = create<GameState>()(
         skills: s.skills,
         inventory: s.inventory,
         quests: s.quests,
+        bookRead: s.bookRead,
         effects: s.effects,
         palette: s.palette,
         plugins: s.plugins,
@@ -599,6 +620,8 @@ export const useGame = create<GameState>()(
           creatures: Array.isArray(p.creatures)
             ? p.creatures.map(sanitizeSpec).filter((c): c is CreatureSpec => !!c).slice(0, MAX_CREATURES)
             : [],
+          bookRead: p.bookRead && typeof p.bookRead === 'object' ? p.bookRead : {},
+          book: null,
         };
       },
     }

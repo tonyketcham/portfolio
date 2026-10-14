@@ -53,7 +53,8 @@ export type SfxName =
   | 'chirp'
   | 'spawn'
   | 'clunk'
-  | 'grind';
+  | 'grind'
+  | 'page';
 
 type Listener = (event: GameEvent) => void;
 const listeners = new Set<Listener>();
