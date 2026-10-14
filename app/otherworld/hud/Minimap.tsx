@@ -12,6 +12,7 @@ import { emit, sfx } from '../state/events';
 import { place, runtime } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
 import { HALF, SIZE, T, getWorld, tileIndex, type TileKind } from '../world/map';
+import { BASEMENT, getBasement } from '../world/basement';
 import { getHouse, onHouseChange } from '../world/places';
 import { useRaf } from './util';
 
@@ -29,6 +30,8 @@ const MAP_COLORS: Record<TileKind, string> = {
   [T.Soil]: '#5e402c',
   [T.Ruin]: '#77736a',
   [T.DarkMoss]: '#2b3f30',
+  [T.Canvas]: '#c7c7cc',
+  [T.Water]: '#397f90',
 };
 
 function useBaseImage() {
@@ -120,6 +123,27 @@ function useHouseImage() {
   }, [version]);
 }
 
+/** The basement: concrete, walls, and RESET's frame on the north wall. */
+function useBasementImage() {
+  return useMemo(() => {
+    if (typeof document === 'undefined') return null;
+    const B = getBasement();
+    const c = document.createElement('canvas');
+    c.width = BASEMENT.w * PX;
+    c.height = BASEMENT.h * PX;
+    const ctx = c.getContext('2d')!;
+    for (let j = 0; j < BASEMENT.h; j++)
+      for (let i = 0; i < BASEMENT.w; i++) {
+        const wall = i === 0 || j === 0 || i === BASEMENT.w - 1 || j === BASEMENT.h - 1;
+        ctx.fillStyle = wall ? '#a1a1aa' : B.blocked[j * BASEMENT.w + i] ? '#27272a' : '#3f3f46';
+        ctx.fillRect(i * PX, j * PX, PX, PX);
+      }
+    ctx.fillStyle = '#6366f1';
+    for (const p of B.placements) ctx.fillRect((p.x - BASEMENT.ox) * PX - 5, (p.z - BASEMENT.oz) * PX - 2, 10, 4);
+    return c;
+  }, []);
+}
+
 function shade(hex: string) {
   if (hex === 'transparent') return hex;
   const n = parseInt(hex.slice(1), 16);
@@ -134,6 +158,7 @@ export function Minimap() {
   const compass = useRef<HTMLButtonElement>(null);
   const islandImage = useBaseImage();
   const houseImage = useHouseImage();
+  const basementImage = useBasementImage();
   const enabled = useGame((s) => s.plugins.minimap);
   const frame = useRef(0);
   const zoom = 1.25;
@@ -152,11 +177,12 @@ export function Minimap() {
     if (frame.current % 2) return;
     const c = canvas.current;
     const inHouse = runtime.location === 'house';
-    const base = inHouse ? houseImage : islandImage;
+    const below = runtime.location === 'basement';
+    const base = inHouse ? houseImage : below ? basementImage : islandImage;
     if (!c || !base) return;
     const L = getHouse().layout;
-    const originX = inHouse ? -L.ox : HALF;
-    const originZ = inHouse ? -L.oz : HALF;
+    const originX = inHouse ? -L.ox : below ? -BASEMENT.ox : HALF;
+    const originZ = inHouse ? -L.oz : below ? -BASEMENT.oz : HALF;
     const ctx = c.getContext('2d')!;
     const size = c.width;
     const r = size / 2;

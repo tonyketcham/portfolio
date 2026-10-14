@@ -266,19 +266,25 @@ export function IntroDirector() {
   return null;
 }
 
+const ARRIVALS: Record<PlaceId, (from: PlaceId) => string> = {
+  island: (from) => (from === 'basement' ? 'You climb back up the ladder, blinking.' : 'You step out onto the island.'),
+  house: () => 'You are home.',
+  basement: (from) => (from === 'island' ? 'You climb down the ladder. The kick drum gets louder.' : 'You arrive in the Underpass. The kick drum gets louder.'),
+};
+
 /**
  * Portal trips between the house and the island: dither the frame out to the
  * canvas, show the loading box, swap places, dither back in. The first time
  * you step onto the island it unfolds around you.
  */
 export function TravelDirector() {
-  const trip = useRef<null | { to: PlaceId; tile?: TilePos; onArrive?: () => void; t: number; swapped: boolean }>(null);
+  const trip = useRef<null | { to: PlaceId; from: PlaceId; tile?: TilePos; onArrive?: () => void; t: number; swapped: boolean }>(null);
 
   useEffect(
     () =>
       on((e) => {
         if (e.type !== 'travel' || trip.current) return;
-        trip.current = { to: e.to, tile: e.tile, onArrive: e.onArrive, t: 0, swapped: false };
+        trip.current = { to: e.to, from: runtime.location, tile: e.tile, onArrive: e.onArrive, t: 0, swapped: false };
         gameState().closeMenu();
         gameState().inspect(null);
       }),
@@ -325,7 +331,7 @@ export function TravelDirector() {
       postState.fade = 0;
       const cb = tr.onArrive;
       trip.current = null;
-      g.say(tr.to === 'island' ? 'You step out onto the island.' : 'You are home.', 'game');
+      g.say(ARRIVALS[tr.to](tr.from), 'game');
       sfx('paste');
       cb?.();
     }

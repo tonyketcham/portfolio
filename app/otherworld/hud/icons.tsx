@@ -73,6 +73,10 @@ const TAB_ICONS: Record<string, { rows: string[]; palette: Record<string, string
     rows: ['...m....', '..mmm...', 'mmmwmmm.', '..mmm..c', '...m..cc', '.....ccc', '..c...cc', '.......c'],
     palette: { m: '#e879f9', w: '#ffffff', c: '#22d3ee' },
   },
+  lab: {
+    rows: ['.g....g.', '..g..g..', '.pppppp.', 'pwkppwkp', 'pppppppp', 'pp.yy.pp', '.pppppp.', '.p.p.p.p'],
+    palette: { g: '#a3e635', p: '#c084fc', w: '#fafafa', k: '#09090b', y: '#facc15' },
+  },
   prayer: {
     rows: ['...w....', '.w.w.w..', '..www...', 'wwwcwww.', '..www...', '.w.w.w..', '...w....', '........'],
     palette: { w: '#e0f2fe', c: '#38bdf8' },

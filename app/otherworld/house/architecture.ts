@@ -456,8 +456,8 @@ export function buildFloors(L: HouseLayout) {
   return g;
 }
 
-/** Hover / destination / marker / path state for house tiles. */
-export function createHouseTileState(L: HouseLayout) {
+/** Hover / destination / marker / path state for house tiles (and any other small tiled floor). */
+export function createHouseTileState(L: Pick<HouseLayout, 'width' | 'height'>) {
   const data = new Uint8Array(L.width * L.height * 4);
   const tex = new THREE.DataTexture(data, L.width, L.height, THREE.RGBAFormat);
   tex.magFilter = THREE.NearestFilter;

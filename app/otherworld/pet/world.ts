@@ -13,7 +13,8 @@ export function basketIn(L: HouseLayout): CatBasket | null {
   return { key: h.key, tile: [h.rect[0], h.rect[1]], x: h.x, z: h.z, y: BASKET_CUSHION, approach: approachFor(L, h) };
 }
 
-export function houseCatWorld(): CatWorld {
+/** `withBasket`: only the basket's owner sees it (one cat fits). */
+export function houseCatWorld(withBasket = true): CatWorld {
   let cached: { layout: HouseLayout; basket: CatBasket | null } | null = null;
   return {
     get width() {
@@ -27,6 +28,7 @@ export function houseCatWorld(): CatWorld {
     canStep: (i, j, di, dj) => house.canStep(i, j, di, dj),
     tileCenter: (i, j) => house.tileCenter(i, j),
     basket() {
+      if (!withBasket) return null;
       const layout = getHouse().layout;
       if (cached?.layout !== layout) cached = { layout, basket: basketIn(layout) };
       return cached.basket;

@@ -29,13 +29,28 @@ export type Inst =
   | 'timpani'
   | 'drum'
   | 'shaker'
-  | 'tick';
+  | 'tick'
+  // the club kit, for the track under the grove
+  | 'kick'
+  | 'rumble'
+  | 'sub'
+  | 'acid'
+  | 'dub'
+  | 'hat'
+  | 'ride'
+  | 'rim';
 
 export interface PartDef {
   inst: Inst;
   gain?: number;
   /** -1 left … 1 right. */
   pan?: number;
+  /** Skip the hall reverb (kicks and sub-bass turn to mud in it). */
+  dry?: boolean;
+  /** 0 … 1: how far this part ducks under each kick, for that pumping sidechain feel. */
+  duck?: number;
+  /** 0 … 1: push every off-beat sixteenth late by this much of a sixteenth (shuffle). */
+  swing?: number;
 }
 
 /** A note, in seconds. `p` indexes the song's parts. */

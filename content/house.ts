@@ -137,7 +137,7 @@ export const house: HouseDesign = {
         'portal-3': 'teak-portal',
         focus: 'scrying-pool',
       },
-      works: { 'portal-1': 'modyfi', 'portal-2': 'p5-svelte', 'portal-3': 'reset-presents' },
+      works: { 'portal-1': 'figma-motion', 'portal-2': 'modyfi', 'portal-3': 'reset-presents' },
     },
     {
       room: 'chapel',

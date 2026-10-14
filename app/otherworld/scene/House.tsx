@@ -208,6 +208,9 @@ function Furniture({ L }: { L: HouseLayout }) {
       return registerInteractable({
         id: `furn:${p.key}`,
         name: p.def.name,
+        catchTarget: p.def.actions?.some((a) => a.id === 'portal' || a.id === 'exit-portal') ? 'portal'
+          : p.def.id === 'kettle-range' ? 'tea' : p.def.id === 'monolith-organ' ? 'machine'
+            : p.def.showsWork ? 'frame' : undefined,
         tone: p.def.showsWork ? 'work' : 'object',
         level: buildMode ? p.def.level : undefined,
         object: () => p.group,

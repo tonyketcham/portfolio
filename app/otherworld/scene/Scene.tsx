@@ -2,14 +2,19 @@
 
 import { Physics } from '@react-three/rapier';
 import { Component, Suspense, useEffect, type ReactNode } from 'react';
+import { CATS } from '@/content/cat';
 import { useTweaks } from '../debug/tweaks';
 import { runtime } from '../state/runtime';
 import { useGame } from '../state/store';
 import { Artboards } from './Artboards';
+import { Basement } from './Basement';
 import { Cables } from './Cables';
 import { CameraRig, IntroDirector, TravelDirector } from './Director';
+import { Creatures } from './Creatures';
 import { Environment } from './Environment';
 import { Fixtures } from './Fixtures';
+import { FishingPond } from './FishingPond';
+import { CatchGags } from './CatchGags';
 import { Flora } from './Flora';
 import { House } from './House';
 import { Interaction } from './Interaction';
@@ -66,6 +71,7 @@ export function Scene() {
       <IntroDirector />
       <TravelDirector />
       <Interaction />
+      <Safe name="catch gags"><CatchGags /></Safe>
       <PostStack />
       <Suspense fallback={null}>
         <Physics gravity={[0, gravity, 0]} debug={colliders} paused={booting}>
@@ -73,8 +79,13 @@ export function Scene() {
           <Safe name="house">
             <House />
           </Safe>
-          <Safe name="cat">
-            <PetCat />
+          <Safe name="cats">
+            {CATS.map((coat) => (
+              <PetCat key={coat.id} coat={coat} />
+            ))}
+          </Safe>
+          <Safe name="basement">
+            <Basement />
           </Safe>
           <Island>
             <Safe name="terrain">
@@ -95,6 +106,9 @@ export function Scene() {
             <Safe name="fixtures">
               <Fixtures />
             </Safe>
+            <Safe name="fishing pond">
+              <FishingPond />
+            </Safe>
             <Safe name="critters">
               <Critters />
             </Safe>
@@ -106,6 +120,9 @@ export function Scene() {
               <Ambient />
             </Safe>
           </Island>
+          <Safe name="creatures">
+            <Creatures />
+          </Safe>
           <Safe name="player">
             <Player />
           </Safe>

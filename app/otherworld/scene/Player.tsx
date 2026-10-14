@@ -37,6 +37,7 @@ const easeOutBounce = (x: number) => {
 /** Has the ground under the player appeared yet (island reveal wave / house build)? */
 function groundReady(x: number, z: number) {
   if (runtime.location === 'island') return revealScale(x, z);
+  if (runtime.location === 'basement') return 1;
   return houseUniforms.built.value >= 0.98 ? 1 : 0;
 }
 
@@ -170,7 +171,7 @@ export function Player() {
   useEffect(
     () =>
       useGame.subscribe((s, prev) => {
-        if (s.levelUp && s.levelUp.seq !== prev.levelUp?.seq && !runtime.player.moving && !runtime.player.pose?.seat) playPose('cheer');
+        if (s.levelUp && s.levelUp.seq !== prev.levelUp?.seq && !runtime.player.moving && !runtime.player.pose?.seat && runtime.player.pose?.kind !== 'fish') playPose('cheer');
       }),
     []
   );
@@ -296,6 +297,8 @@ export function Player() {
       const dz = s.to.z - s.from.z;
       if (Math.abs(dx) + Math.abs(dz) > 1e-4) P.yaw = dampAngle(P.yaw, Math.atan2(dx, dz), 14, dt);
       if (s.stepT >= 1) {
+        // Arrival actions may start a held pose; the completed step must not cancel it.
+        moving = false;
         finishStep(s);
         if (!s.path.length) {
           place().tiles.clear(TileChannel.Destination);
@@ -330,7 +333,7 @@ export function Player() {
     } else if (P.idle > 40 && g.prayer !== 'sleep') {
       kind = 'sit-floor';
       poseT = P.idle - 40;
-      if (P.idle - dt <= 40) g.say(runtime.location === 'house' ? 'You sit down on the floor for a moment. Nice floor.' : 'You sit down on the canvas for a moment.');
+      if (P.idle - dt <= 40) g.say(runtime.location === 'house' ? 'You sit down on the floor for a moment. Nice floor.' : runtime.location === 'basement' ? 'You sit down on the cold concrete. The floor is vibrating.' : 'You sit down on the canvas for a moment.');
     }
     const seated = !!P.pose?.seat;
     s.seatK = damp(s.seatK, seated ? 1 : 0, seated ? 7 : 12, dt);

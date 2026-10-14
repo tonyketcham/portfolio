@@ -62,12 +62,27 @@ The house portal by spawn takes you home.
 - Skills (with the classic XP curve; Cats starts at 99), inventory, quests, a tea stall to steal
   from, Tony to talk to, an amanita ring that makes the pixels breathe, bezier-handle butterflies, a fractal tree
   you can water, and a curry pot.
+- **404 Pond** is tucked away on the island's west side, between the grove and the ruins.
+  Take the fishing rod lying on the bank, then click a bubbling tile. The pixel icon above it
+  shows the common catch: missing textures, broken links or ancient JPEGs. An actual fish
+  called `undefined` and a preserved Flash website are rare catches. Fishing earns XP and
+  continues until you move, put down the rod or fill your inventory. `::tp pond` visits it directly.
+  Each catch has a single-use gag with varying lines and motion: wear the missing texture,
+  follow the broken link, crunch a JPEG, release `undefined`, or open the Flash site. Right-click
+  or long-press a catch for **Use on…**: try textures on frames, links on portals, JPEGs at the
+  tea stall or kettle, fish on the cat, and Flash on design machines or the organ. Successful
+  combinations consume one catch; unsuccessful or cancelled attempts keep it. JPEG tea fills
+  the freed inventory slot. Gag copy and combinations live in `content/catch-gags.ts`.
+  Tune the pond and catch spots in `content/fishing.ts`; `pnpm test:fishing` checks the production
+  map, bank paths, catches, cancellation and inventory persistence.
 - **Music tab**: seven original tracks in the spirit of the old MIDI soundtrack (Dot Grid Dawn,
   Croissant Morning, Bézier Waltz, Pixel Lavender, Ninety-Nine Cats, Perlin Bread Shanty, Node
-  Garden), played in order and looped once sound is on. Harp, flute, pizzicato and friends are
-  all WebAudio synth voices; tracks are red until you've heard them. In order / shuffle / loop,
-  skip, and a volume slider. Scores live in `app/otherworld/audio/tracks.ts` as chord charts and
-  note strings (the notation is documented in `score.ts`).
+  Garden). Harp, flute, pizzicato and friends are all WebAudio synth voices; tracks are red until
+  you've heard them. By default the music is location-based (Area mode): the house and the island
+  each have their own tunes, Frame 1, Modyfi Grove, Sketch Garden and the Amanita Ring have theirs,
+  and stepping through a portal fades over to the new area's music. In order / shuffle / loop,
+  skip, and a volume slider too. Scores and the area table (`AREA_MUSIC`) live in
+  `app/otherworld/audio/tracks.ts`; the notation is documented in `score.ts`.
 - Chat commands: `::help`, `::dial`, `::target <panel>`, `::home`, `::island`, `::build`,
   `::tp <zone|house>`, `::tea`, `::type <text>`, `::music [track]`, `::next`, `::intro`, `::classic`.
 

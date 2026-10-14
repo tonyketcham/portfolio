@@ -10,16 +10,17 @@
  * body pitches, and lays the tail along the floor instead of through it.
  * Frames can be held old-school style (`stepFps`), like the player.
  *
- * Markings follow the real cat (see content/cat.ts): white face, chest,
- * belly and paws; a grey cap over the ears down to just above the eyes; a
- * lopsided smudge down the nose to one side; a grey saddle with white
- * patches; a darker tail; a red collar with a plain heart tag.
+ * Markings follow the real cats (see content/cat.ts): Squim's bicolour
+ * (white face, chest, belly and paws; a grey cap down to just above the
+ * eyes; a lopsided nose smudge; a patched grey saddle), How Mow's long grey
+ * coat (ruff, cheek tufts, a plume of a tail), and Mingi's mackerel tabby
+ * (stripes round body, legs and tail; an "M" on the brow).
  *
  * React-free, so it renders headless too. Local space: faces +z, up is +y,
  * its left is +x. 1 = one tile.
  */
 import * as THREE from 'three/webgpu';
-import { CAT } from '@/content/cat';
+import { CAT, type CatCoat } from '@/content/cat';
 import { mulberry32 } from '../lib/random';
 
 type V3 = [number, number, number];
@@ -180,8 +181,16 @@ class CatBuilder {
    * A loft along +z through rings of `sides` vertices. Ends can be left open,
    * closed flat, or closed to a point.
    */
-  loft(rings: Ring[], sides: number, paint: Paint, opts: { phase?: number; start?: 'flat' | V3; end?: 'flat' | V3; jitter?: number } = {}) {
+  loft(rings: Ring[], sides: number, paint: Paint, opts: { phase?: number; start?: 'flat' | V3; end?: 'flat' | V3; jitter?: number; sub?: number } = {}) {
     const phase = opts.phase ?? Math.PI / sides;
+    // extra rings in between: the same facets, cut finer for stripes
+    const sub = Math.max(1, Math.round(opts.sub ?? 1));
+    if (sub > 1)
+      rings = rings.flatMap((r, k) => {
+        const next = rings[k + 1];
+        if (!next) return [r];
+        return Array.from({ length: sub }, (_, i) => r.map((v, j) => v + (next[j] - v) * (i / sub)) as Ring);
+      });
     const pts = rings.map(([z, rx, ry, cy]) =>
       Array.from({ length: sides }, (_, s) => {
         const a = phase + (s / sides) * Math.PI * 2;
@@ -308,51 +317,98 @@ const PATCHES: V3[] = [
   [0.03, -0.165, 0.035],
 ];
 
-function bodyPaint(c: THREE.Vector3, n: THREE.Vector3) {
-  if (n.y < -0.3) return CAT.white;
-  if (c.z > 0.15 && c.y < 0.055) return CAT.white;
-  const back = c.y > 0.012 || (c.y > -0.035 && Math.abs(n.x) > 0.55 && c.z < 0.12);
-  if (!back) return CAT.white;
-  for (const [x, z, r] of PATCHES) if ((c.x - x) ** 2 + (c.z - z) ** 2 < r * r && c.y > -0.02) return CAT.white;
-  return CAT.grey;
+/** The catchlight in each eye, whatever the coat. */
+const GLINT = '#f4f2ee';
+
+/** Mackerel stripes: bands across `along` (one every `period`), wavering a little with `across`. */
+const band = (along: number, across: number, period: number, width = 0.32) =>
+  Math.sin(((along + Math.sin(across * 38) * 0.012) / period) * Math.PI * 2) > 1 - width * 2;
+
+function bodyPaint(coat: CatCoat) {
+  return (c: THREE.Vector3, n: THREE.Vector3) => {
+    if (n.y < -0.3) return coat.white;
+    if (coat.pattern === 'solid') return c.z > 0.15 && c.y < 0.055 ? coat.white : coat.grey;
+    if (coat.pattern === 'tabby') {
+      if (c.z > 0.15 && c.y < 0.03) return coat.white;
+      // a dark line down the spine, stripes down the flanks
+      if (c.y > 0.07 && Math.abs(c.x) < 0.032) return coat.smudge;
+      if (c.y > -0.05 && band(c.z, c.y, 0.07)) return coat.smudge;
+      return coat.grey;
+    }
+    if (c.z > 0.15 && c.y < 0.055) return coat.white;
+    const back = c.y > 0.012 || (c.y > -0.035 && Math.abs(n.x) > 0.55 && c.z < 0.12);
+    if (!back) return coat.white;
+    for (const [x, z, r] of PATCHES) if ((c.x - x) ** 2 + (c.z - z) ** 2 < r * r && c.y > -0.02) return coat.white;
+    return coat.grey;
+  };
 }
 
-function headPaint(c: THREE.Vector3) {
-  if (c.y > 0.022) return CAT.grey;
-  if (c.z < -0.035 && c.y > -0.03) return CAT.grey;
-  return CAT.white;
+function headPaint(coat: CatCoat) {
+  return (c: THREE.Vector3) => {
+    if (coat.pattern === 'bicolour') {
+      if (c.y > 0.022) return coat.grey;
+      if (c.z < -0.035 && c.y > -0.03) return coat.grey;
+      return coat.white;
+    }
+    if (coat.pattern === 'tabby' && c.y > 0.03 && band(c.z, c.x, 0.05, 0.25)) return coat.smudge;
+    return c.y < -0.04 ? coat.white : coat.grey;
+  };
 }
 
-function buildCatGeometry(bones: THREE.Bone[]) {
+/** A flat bar from (x0, y0) to (x1, y1), `w` wide. */
+function bar(x0: number, y0: number, x1: number, y1: number, w: number): V2[] {
+  const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+  const nx = (-(y1 - y0) / len) * (w / 2);
+  const ny = ((x1 - x0) / len) * (w / 2);
+  return [
+    [x0 + nx, y0 + ny],
+    [x0 - nx, y0 - ny],
+    [x1 - nx, y1 - ny],
+    [x1 + nx, y1 + ny],
+  ];
+}
+
+function buildCatGeometry(bones: THREE.Bone[], coat: CatCoat) {
   bones[0].updateMatrixWorld(true);
   const rest = bones.map((b) => b.matrixWorld.clone());
   const k = new CatBuilder(rest);
+  const bi = coat.pattern === 'bicolour';
+  const tabby = coat.pattern === 'tabby';
+  const fl = coat.fluff;
+  /** Long hair: wider than it is tall, so the belly stays off the floor. */
+  const fluffed = (rings: Ring[], x = 0.14, y = 0.05): Ring[] => rings.map(([z, rx, ry, cy]) => [z, rx * (1 + fl * x), ry * (1 + fl * y), cy]);
+  /** Fur on the legs: socks, plain, or striped. */
+  const legPaint = (plain: string): Paint => (tabby ? (c) => (band(c.z, c.x, 0.045, 0.28) ? coat.smudge : coat.grey) : plain);
+  const stripes = tabby ? 3 : 1;
 
   // body: two lofts overlapping at the waist, so the spine can bend
   k.on(BONE.chest).loft(
-    [
+    fluffed([
       [-0.07, 0.086, 0.088, 0],
       [0.0, 0.097, 0.1, 0],
       [0.08, 0.1, 0.101, 0.004],
       [0.15, 0.088, 0.096, 0.008],
       [0.2, 0.06, 0.072, 0.006],
-    ],
+    ]),
     8,
-    bodyPaint,
-    { end: [0, 0.004, 0.222] }
+    bodyPaint(coat),
+    { end: [0, 0.004, 0.222], sub: stripes }
   );
   k.on(BONE.hips).loft(
-    [
+    fluffed([
       [-0.205, 0.066, 0.07, 0.01],
       [-0.16, 0.094, 0.094, 0.004],
       [-0.08, 0.1, 0.1, 0],
       [0.0, 0.097, 0.1, 0],
       [0.07, 0.086, 0.088, 0],
-    ],
+    ]),
     8,
-    bodyPaint,
-    { start: [0, 0.012, -0.232] }
+    bodyPaint(coat),
+    { start: [0, 0.012, -0.232], sub: stripes }
   );
+  // long hair: a big pale bib on the chest
+  if (fl > 0)
+    k.on(BONE.chest).geo(new THREE.IcosahedronGeometry(0.08, 0), coat.white, mat4([0, -0.012, 0.165], [0.35, 0, 0], [1.2 * fl, 1.05 * fl, 0.8 * fl]));
 
   // head: a chunky loft with a bevelled face plate the markings are drawn on
   const S = mat4([0, 0, 0], [0, 0, 0], [HS, HS, HS]);
@@ -366,28 +422,43 @@ function buildCatGeometry(bones: THREE.Bone[]) {
       [FACE_Z, 0.074, 0.056, -0.006],
     ],
     8,
-    headPaint,
-    { start: [0, 0.014, -0.1] }
+    headPaint(coat),
+    { start: [0, 0.014, -0.1], sub: stripes }
   );
-  k.poly(plate, FACE_Z, CAT.white);
-  // the grey cap comes down the forehead to just above the eyes
-  const CAP_Y = 0.028;
-  k.poly(clip(plate, 0.06, 1, -CAP_Y), FACE_Z + 0.0012, CAT.grey);
-  // the smudge: from the cap down the nose bridge, off to its left, lopsided
-  k.poly(
-    [
-      [-0.003, 0.032],
-      [0.022, 0.032],
-      [0.024, 0.016],
-      [0.02, 0.0],
-      [0.017, -0.012],
-      [0.006, -0.016],
-      [0.004, -0.002],
-      [0.0, 0.016],
-    ],
-    FACE_Z + 0.0018,
-    CAT.smudge
-  );
+  k.poly(plate, FACE_Z, bi ? coat.white : coat.grey);
+  if (bi) {
+    // the grey cap comes down the forehead to just above the eyes
+    const CAP_Y = 0.028;
+    k.poly(clip(plate, 0.06, 1, -CAP_Y), FACE_Z + 0.0012, coat.grey);
+    // the smudge: from the cap down the nose bridge, off to its left, lopsided
+    k.poly(
+      [
+        [-0.003, 0.032],
+        [0.022, 0.032],
+        [0.024, 0.016],
+        [0.02, 0.0],
+        [0.017, -0.012],
+        [0.006, -0.016],
+        [0.004, -0.002],
+        [0.0, 0.016],
+      ],
+      FACE_Z + 0.0018,
+      coat.smudge
+    );
+  }
+  if (tabby) {
+    // pale goggles round the eyes, an "M" on the brow, a line off each eye
+    for (const s of [1, -1]) {
+      k.poly(ring2(0.025, 0.021, EYE[1], 8).map(([x, y]): V2 => [x + s * EYE[0], y]), FACE_Z + 0.0008, coat.white);
+      k.poly(bar(s * 0.052, EYE[1] - 0.002, s * 0.072, EYE[1] - 0.014, 0.005), FACE_Z + 0.0012, coat.smudge);
+      k.poly(bar(s * 0.018, 0.026, s * 0.026, 0.048, 0.006), FACE_Z + 0.0012, coat.smudge);
+    }
+    k.poly(bar(0, 0.03, 0, 0.05, 0.006), FACE_Z + 0.0012, coat.smudge);
+  }
+  // long hair: cheek tufts sticking out and down
+  if (fl > 0)
+    for (const s of [1, -1])
+      k.geo(new THREE.ConeGeometry(0.026 * fl, 0.07 * fl, 4).rotateZ(-s * (Math.PI / 2 + 0.45)).translate(s * 0.095, -0.03, 0.02), coat.grey);
   // closed-eye lines under the irises (they show when the eyes shut)
   for (const s of [1, -1]) {
     const x = s * EYE[0];
@@ -401,17 +472,22 @@ function buildCatGeometry(bones: THREE.Bone[]) {
         [x - 0.017, EYE[1] - 0.009],
       ],
       FACE_Z + 0.0015,
-      CAT.pupil
+      coat.pupil
     );
   }
-  // muzzle, nose, and the smudge carrying on beside the nose
+  // muzzle and nose (and, on Squim, the smudge carrying on beside the nose)
+  const muzzle: Paint = bi
+    ? (c, n) => (n.y > 0.3 && c.x > 0.004 ? coat.smudge : coat.white)
+    : tabby
+      ? (_c, n) => (n.y > 0.3 ? coat.grey : coat.white)
+      : (_c, n) => (n.y < -0.3 ? coat.white : coat.grey);
   k.loft(
     [
       [FACE_Z - 0.02, 0.046, 0.03, -0.031],
       [FACE_Z + 0.02, 0.04, 0.025, -0.033],
     ],
     6,
-    (c, n) => (n.y > 0.3 && c.x > 0.004 ? CAT.smudge : CAT.white),
+    muzzle,
     { phase: 0, end: 'flat' }
   );
   k.poly(
@@ -422,7 +498,7 @@ function buildCatGeometry(bones: THREE.Bone[]) {
       [-0.003, -0.025],
     ],
     FACE_Z + 0.0212,
-    CAT.nose
+    coat.nose
   );
 
   // eyes: iris, slit pupil, a glint (blink by scaling the bone)
@@ -431,7 +507,7 @@ function buildCatGeometry(bones: THREE.Bone[]) {
     [BONE.eyeR, -1],
   ] as const) {
     k.on(bone, mat4([0, 0, 0], [0, 0, s * 0.16], [HS, HS, HS]));
-    k.poly(ring2(0.019, 0.0155, 0, 6, 0), 0.0028, CAT.eyes);
+    k.poly(ring2(0.019, 0.0155, 0, 6, 0), 0.0028, coat.eyes);
     k.poly(
       [
         [0, 0.0145],
@@ -440,7 +516,7 @@ function buildCatGeometry(bones: THREE.Bone[]) {
         [-0.0042, 0],
       ],
       0.0034,
-      CAT.pupil
+      coat.pupil
     );
     k.poly(
       [
@@ -450,11 +526,12 @@ function buildCatGeometry(bones: THREE.Bone[]) {
         [s * 0.0075 - 0.0026, 0.0098],
       ],
       0.004,
-      CAT.white
+      GLINT
     );
   }
 
-  // ears: grey, dark tips, pink inside, tilted out
+  // ears: coat colour, dark tips, pink inside, tilted out
+  const earTip = bi ? coat.tail : tabby ? coat.smudge : coat.greyDark;
   for (const [bone, s] of [
     [BONE.earL, 1],
     [BONE.earR, -1],
@@ -466,17 +543,17 @@ function buildCatGeometry(bones: THREE.Bone[]) {
     const tip = V(0, 0.088, -0.01);
     for (let i = 0; i < 4; i++) {
       const j = (i + 1) % 4;
-      k.quad(B[i], B[j], M[j], M[i], CAT.grey);
-      k.tri(M[i], M[j], tip, CAT.tail);
+      k.quad(B[i], B[j], M[j], M[i], coat.grey);
+      k.tri(M[i], M[j], tip, earTip);
     }
     const front = (y: number) => 0.02 - 0.33 * y + 0.0035;
-    k.tri(V(-0.022, 0.007, front(0.007)), V(0.022, 0.007, front(0.007)), V(0, 0.066, front(0.066) - 0.002), CAT.innerEar, 0);
+    k.tri(V(-0.022, 0.007, front(0.007)), V(0.022, 0.007, front(0.007)), V(0, 0.066, front(0.066) - 0.002), coat.innerEar, 0);
   }
 
   // tongue (hidden unless grooming)
-  k.on(BONE.tongue, S).geo(new THREE.BoxGeometry(0.022, 0.006, 0.03).translate(0, 0, 0.015), CAT.tongue);
+  k.on(BONE.tongue, S).geo(new THREE.BoxGeometry(0.022, 0.006, 0.03).translate(0, 0, 0.015), coat.tongue);
 
-  // collar around the neck, the heart tag hanging under the chin
+  // collar around the neck, the tag hanging under the chin
   const tiltCollar = mat4([0, -0.004, 0.006], [-0.95, 0, 0]);
   k.on(BONE.neck, tiltCollar).loft(
     [
@@ -484,15 +561,27 @@ function buildCatGeometry(bones: THREE.Bone[]) {
       [0.012, 0.083, 0.08, 0],
     ],
     10,
-    CAT.collar,
+    coat.collar,
     { jitter: 0.02 }
   );
+  // long hair: a ruff behind the collar, pale underneath
+  if (fl > 0)
+    k.loft(
+      [
+        [-0.07, 0.1 + 0.02 * fl, 0.096 + 0.02 * fl, 0],
+        [-0.016, 0.092 + 0.012 * fl, 0.088 + 0.012 * fl, 0],
+      ],
+      10,
+      (c) => (c.y < 0 ? coat.white : coat.grey),
+      { start: 'flat', end: [0, 0, 0.004], jitter: 0.08 }
+    );
   k.on(BONE.neck, mat4([0, -0.06, 0.085], [0.25, 0, 0]));
-  k.poly(heart(0.05, 0, 0), 0.003, CAT.tag);
-  k.poly(heart(0.05, 0, 0), -0.003, CAT.tag, true);
-  k.geo(new THREE.CylinderGeometry(0.004, 0.004, 0.02, 4).translate(0, 0.026, 0), CAT.collar);
+  const tag = coat.tagShape === 'heart' ? heart(0.05, 0, 0) : ring2(0.019, 0.019, -0.004, 8);
+  k.poly(tag, 0.003, coat.tag);
+  k.poly(tag, -0.003, coat.tag, true);
+  k.geo(new THREE.CylinderGeometry(0.004, 0.004, 0.02, 4).translate(0, 0.026, 0), coat.collar);
 
-  // legs: hexagonal, white socks; the hind thighs carry the grey down a little
+  // legs: hexagonal; Squim's in white socks with the grey down her thighs
   for (let leg = 0; leg < 4; leg++) {
     const front = leg < 2;
     const up = BONE.legs + leg * 3;
@@ -502,38 +591,51 @@ function buildCatGeometry(bones: THREE.Bone[]) {
           [-0.025, 0.04, 0.044, 0],
           [l1 + 0.006, 0.031, 0.032, 0],
         ]
-      : [
-          [-0.035, 0.05, 0.066, 0.008],
-          [0.035, 0.045, 0.056, 0.0],
-          [l1 + 0.006, 0.03, 0.032, 0],
-        ];
-    k.on(up, DOWN).loft(upper, 6, front ? CAT.white : (c) => (c.z < 0.05 ? CAT.grey : CAT.white), { phase: 0 });
-    k.on(up + 1).geo(new THREE.OctahedronGeometry(front ? 0.031 : 0.03, 0), CAT.white);
+      : fluffed(
+          [
+            [-0.035, 0.05, 0.066, 0.008],
+            [0.035, 0.045, 0.056, 0.0],
+            [l1 + 0.006, 0.03, 0.032, 0],
+          ],
+          0.25,
+          0.15
+        );
+    const upperPaint: Paint = bi ? (front ? coat.white : (c) => (c.z < 0.05 ? coat.grey : coat.white)) : legPaint(coat.grey);
+    k.on(up, DOWN).loft(upper, 6, upperPaint, { phase: 0, sub: stripes });
+    k.on(up + 1).geo(new THREE.OctahedronGeometry(front ? 0.031 : 0.03, 0), bi ? coat.white : coat.grey);
     k.on(up + 1, DOWN).loft(
       [
         [0, 0.03, 0.031, 0],
         [l2 - 0.014, 0.026, 0.027, 0],
       ],
       6,
-      CAT.white,
-      { phase: 0 }
+      bi ? coat.white : legPaint(coat.grey),
+      { phase: 0, sub: stripes }
     );
-    k.on(up + 2).geo(new THREE.BoxGeometry(0.058, 0.032, 0.072).translate(0, 0.016, 0.014), CAT.white);
+    k.on(up + 2).geo(new THREE.BoxGeometry(0.058, 0.032, 0.072).translate(0, 0.016, 0.014), bi ? coat.white : coat.pattern === 'solid' ? coat.smudge : coat.grey);
   }
 
-  // tail: darker grey, tapering, a point at the tip
+  // tail: tapering, a point at the tip; a plume on long hair, rings on a tabby
+  const plume = 1 + fl * 0.85;
   for (let i = 0; i < TAIL_N; i++) {
-    const r0 = 0.04 - i * 0.0036;
-    const r1 = r0 - 0.0036;
+    const r0 = (0.04 - i * 0.0036) * plume;
+    const r1 = r0 - 0.0036 * plume;
     const last = i === TAIL_N - 1;
+    const paint: Paint = tabby
+      ? last
+        ? coat.smudge
+        : (c) => (c.z < -TAIL_SEG / 2 ? coat.smudge : coat.tail)
+      : i === 0
+        ? coat.greyDark
+        : coat.tail;
     k.on(BONE.tail + i).loft(
       [
         [-(TAIL_SEG + 0.012), r1, r1, 0],
         [0.012, r0, r0, 0],
       ],
       6,
-      i === 0 ? CAT.greyDark : CAT.tail,
-      { phase: 0, start: last ? [0, 0, -(TAIL_SEG + 0.04)] : undefined }
+      paint,
+      { phase: 0, start: last ? [0, 0, -(TAIL_SEG + 0.04)] : undefined, sub: tabby ? 2 : 1 }
     );
   }
 
@@ -786,10 +888,10 @@ export class CatModel {
   private twitchT = 9;
   private twitchSide = 1;
 
-  constructor() {
+  constructor(readonly coat: CatCoat = CAT) {
     this.group.name = 'pet-cat';
     this.bones = buildSkeleton();
-    const { geometry, tris } = buildCatGeometry(this.bones);
+    const { geometry, tris } = buildCatGeometry(this.bones, coat);
     this.tris = tris;
     this.mesh = new THREE.SkinnedMesh(geometry, this.material);
     this.mesh.add(this.bones[BONE.root]);

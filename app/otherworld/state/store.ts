@@ -6,8 +6,9 @@ import type { SkillId } from '@/content/works';
 import type { TilePos } from '../world/pathfinding';
 import { rebuildHouse, type HouseEdits, type PlaceId } from '../world/places';
 import type { HouseStyleId } from '../house/types';
-import { TRACKS, nextTrack, type MusicMode } from '../audio/tracks';
-import { EFFECT_PRESETS, effectById, type EffectId, type EffectLayer } from './effects';
+import { TRACKS, musicArea, nextTrack, trackLocked, type MusicMode, type TrackUnlocks } from '../audio/tracks';
+import { MAX_CREATURES, sanitizeSpec, type CreatureSpec } from '../creatures/spec';
+import { EFFECT_PRESETS, reconcileStack, type EffectId, type EffectLayer } from './effects';
 import { sfx } from './events';
 import { ITEMS, withStarterKit, type ItemStack } from './items';
 import { prayerById, type PrayerId } from './prayers';
@@ -39,7 +40,7 @@ const safeStorage: StateStorage = {
 };
 
 export type Stage = 'boot' | 'artboard' | 'unfolding' | 'world';
-export type Tab = 'inventory' | 'skills' | 'quests' | 'layers' | 'effects' | 'prayer' | 'house' | 'music' | 'plugins';
+export type Tab = 'inventory' | 'skills' | 'quests' | 'layers' | 'effects' | 'lab' | 'prayer' | 'house' | 'music' | 'plugins';
 export type Tool = 'move' | 'text';
 export type Tone = 'npc' | 'object' | 'item' | 'work' | 'player' | 'plain' | 'zone';
 
@@ -118,6 +119,8 @@ interface GameState {
   skills: Record<SkillId, number>;
   levelUp: { skill: SkillId; level: number; seq: number } | null;
   inventory: (ItemStack | null)[];
+  /** A session-only Use-on selection; the stack reference protects delayed arrivals. */
+  usingCatch: { slot: number; stack: ItemStack } | null;
   quests: Record<string, 'seen' | 'done'>;
   effects: EffectLayer[];
   /** Gradient-map palette set by the last preset (overrides the tweak default). */
@@ -156,6 +159,12 @@ interface GameState {
   musicPaused: boolean;
   /** Tracks heard at least once, by id: green in the Music tab. */
   musicHeard: Record<string, true>;
+  /** Secret tracks found, by id. Until then they're hidden and unplayable. */
+  musicSecrets: TrackUnlocks;
+  /** Visitor-made creatures living in the world. */
+  creatures: CreatureSpec[];
+  /** The creature on the lab's workbench; not in the world until it's spawned. */
+  labDraft: CreatureSpec | null;
 
   setStage: (stage: Stage) => void;
   setTab: (tab: Tab | null) => void;
@@ -211,6 +220,12 @@ interface GameState {
   setMusicMode: (mode: MusicMode) => void;
   toggleMusicPaused: () => void;
   hearTrack: (index: number) => void;
+  /** Unlock a secret track. True if it was newly found. */
+  unlockTrack: (id: string) => boolean;
+  setLabDraft: (spec: CreatureSpec | null) => void;
+  /** Add or replace (by id). False when the world is full. */
+  upsertCreature: (spec: CreatureSpec) => boolean;
+  removeCreature: (id: string) => void;
 }
 
 let lineId = 1;
@@ -248,6 +263,7 @@ export const useGame = create<GameState>()(
       skills: emptySkills(),
       levelUp: null,
       inventory: starterInventory(),
+      usingCatch: null,
       quests: {},
       effects: cloneStack('canvas'),
       palette: null,
@@ -266,7 +282,7 @@ export const useGame = create<GameState>()(
       locked: {},
       markers: {},
       destination: null,
-      running: false,
+      running: true,
       caffeine: 100,
       mushroomUntil: 0,
       dialOpen: false,
@@ -281,13 +297,16 @@ export const useGame = create<GameState>()(
       loading: null,
       prayer: null,
       musicVolume: 0.6,
-      musicMode: 'sequence',
+      musicMode: 'area',
       musicTrack: 0,
       musicSeq: 0,
       musicPaused: false,
       musicHeard: {},
+      musicSecrets: {},
+      creatures: [],
+      labDraft: null,
 
-      setStage: (stage) => set(stage === 'world' ? { stage, introSeen: true } : { stage }),
+      setStage: (stage) => set(stage === 'world' ? { stage, introSeen: true } : { stage, usingCatch: null }),
       setTab: (tab) => set({ tab }),
       setTool: (tool) => set({ tool }),
       openMenu: (menu) => {
@@ -295,8 +314,8 @@ export const useGame = create<GameState>()(
         set({ menu });
       },
       closeMenu: () => set({ menu: null }),
-      inspect: (slug) => set({ inspecting: slug, menu: null, tab: slug ? null : get().tab }),
-      setDialogue: (dialogue) => set({ dialogue, menu: null }),
+      inspect: (slug) => set({ inspecting: slug, menu: null, tab: slug ? null : get().tab, usingCatch: null }),
+      setDialogue: (dialogue) => set({ dialogue, menu: null, usingCatch: null }),
       setTextPrompt: (textPrompt) => set({ textPrompt }),
       say: (text, kind = 'game', from) =>
         set((s) => ({ chat: [...s.chat.slice(-60), { id: lineId++, kind, from, text }] })),
@@ -340,13 +359,13 @@ export const useGame = create<GameState>()(
         const inv = get().inventory.slice();
         const item = inv[slot];
         inv[slot] = null;
-        set({ inventory: inv });
+        set({ inventory: inv, usingCatch: null });
         return item;
       },
       swapSlots: (a, b) => {
         const inv = get().inventory.slice();
         [inv[a], inv[b]] = [inv[b], inv[a]];
-        set({ inventory: inv });
+        set({ inventory: inv, usingCatch: null });
       },
       hasItem: (id) => get().inventory.some((s) => s?.id === id),
 
@@ -400,10 +419,10 @@ export const useGame = create<GameState>()(
 
       walkTo: (tile, onArrive) => set({ destination: { seq: destSeq++, tile, onArrive }, menu: null }),
       teleportTo: (tile, onArrive) =>
-        set({ destination: { seq: destSeq++, tile, onArrive, teleport: true }, menu: null }),
+        set({ destination: { seq: destSeq++, tile, onArrive, teleport: true }, menu: null, usingCatch: null }),
       appearAt: (tile, onArrive) =>
-        set({ destination: { seq: destSeq++, tile, onArrive, teleport: true, instant: true }, menu: null }),
-      cancelWalk: () => set({ destination: null }),
+        set({ destination: { seq: destSeq++, tile, onArrive, teleport: true, instant: true }, menu: null, usingCatch: null }),
+      cancelWalk: () => set({ destination: null, usingCatch: null }),
       toggleRun: () => {
         const { running, caffeine } = get();
         if (!running && caffeine < 1) {
@@ -430,6 +449,7 @@ export const useGame = create<GameState>()(
         set({
           skills: emptySkills(),
           inventory: starterInventory(),
+          usingCatch: null,
           quests: {},
           markers: {},
           introSeen: false,
@@ -438,10 +458,19 @@ export const useGame = create<GameState>()(
           islandVisited: false,
           houseEdits: {},
           houseStyle: null,
+          musicSecrets: {},
+          creatures: [],
+          labDraft: null,
+          // Don't leave a now-locked secret queued up.
+          ...(trackLocked(get().musicTrack, {}) ? { musicTrack: 0, musicSeq: get().musicSeq + 1 } : {}),
         }),
-      setLocation: (location) => set({ location, zoneId: null }),
+      setLocation: (location) => {
+        set({ location, zoneId: null, usingCatch: null });
+        // Finding a place can turn up a secret track.
+        for (const t of TRACKS) if (t.secret === location) get().unlockTrack(t.id);
+      },
       setIslandVisited: () => set({ islandVisited: true }),
-      setBuildMode: (buildMode) => set({ buildMode, building: buildMode ? get().building : null, menu: null }),
+      setBuildMode: (buildMode) => set({ buildMode, building: buildMode ? get().building : null, menu: null, usingCatch: null }),
       setBuilding: (building) => set({ building, menu: null }),
       setFurniture: (key, id) => {
         const houseEdits = { ...get().houseEdits, [key]: id };
@@ -453,17 +482,28 @@ export const useGame = create<GameState>()(
         set({ houseEdits: {} });
       },
       setHouseStyle: (houseStyle) => set({ houseStyle }),
-      setLoading: (loading) => set({ loading }),
-      playTrack: (index) =>
+      setLoading: (loading) => set({ loading, usingCatch: null }),
+      playTrack: (index) => {
+        if (!TRACKS[index]) return;
+        if (trackLocked(index, get().musicSecrets)) {
+          get().say("You haven't unlocked that track yet.", 'system');
+          return;
+        }
         set((s) => ({
           musicTrack: index,
           musicSeq: s.musicSeq + 1,
           musicPaused: false,
           musicVolume: s.musicVolume || 0.6,
           plugins: { ...s.plugins, sound: true },
-        })),
-      skipTrack: (dir) => get().playTrack(nextTrack(get().musicTrack, get().musicMode, dir)),
-      setMusicTrack: (musicTrack) => set({ musicTrack }),
+        }));
+      },
+      skipTrack: (dir) => {
+        const s = get();
+        s.playTrack(nextTrack(s.musicTrack, s.musicMode, dir, false, musicArea(s.location, s.zoneId), s.musicSecrets));
+      },
+      setMusicTrack: (musicTrack) => {
+        if (TRACKS[musicTrack] && !trackLocked(musicTrack, get().musicSecrets)) set({ musicTrack });
+      },
       setMusicVolume: (musicVolume) => set({ musicVolume: Math.min(1, Math.max(0, musicVolume)) }),
       setMusicMode: (musicMode) => set({ musicMode }),
       toggleMusicPaused: () => set((s) => ({ musicPaused: !s.musicPaused })),
@@ -471,8 +511,25 @@ export const useGame = create<GameState>()(
         const track = TRACKS[index];
         if (!track || get().musicHeard[track.id]) return;
         set((s) => ({ musicHeard: { ...s.musicHeard, [track.id]: true } }));
-        get().say(`You have unlocked a new music track: ${track.name}.`, 'game');
+        // Secrets are announced when they're found, not again on first listen.
+        if (!track.secret) get().say(`You have unlocked a new music track: ${track.name}.`, 'game');
       },
+      unlockTrack: (id) => {
+        const track = TRACKS.find((t) => t.id === id);
+        if (!track?.secret || get().musicSecrets[id]) return false;
+        set((s) => ({ musicSecrets: { ...s.musicSecrets, [id]: true } }));
+        get().say(`You have unlocked a secret music track: ${track.name}.`, 'game');
+        return true;
+      },
+      setLabDraft: (labDraft) => set({ labDraft }),
+      upsertCreature: (spec) => {
+        const list = get().creatures;
+        const i = list.findIndex((c) => c.id === spec.id);
+        if (i < 0 && list.length >= MAX_CREATURES) return false;
+        set({ creatures: i < 0 ? [...list, spec] : list.map((c) => (c.id === spec.id ? spec : c)) });
+        return true;
+      },
+      removeCreature: (id) => set((s) => ({ creatures: s.creatures.filter((c) => c.id !== id), labDraft: s.labDraft?.id === id ? null : s.labDraft })),
       togglePrayer: (id) => {
         const on = get().prayer !== id;
         set({ prayer: on ? id : null });
@@ -508,6 +565,8 @@ export const useGame = create<GameState>()(
         musicVolume: s.musicVolume,
         musicMode: s.musicMode,
         musicHeard: s.musicHeard,
+        musicSecrets: s.musicSecrets,
+        creatures: s.creatures,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<GameState>;
@@ -516,13 +575,7 @@ export const useGame = create<GameState>()(
           Array.isArray(p.inventory) && p.inventory.length === INVENTORY_SIZE
             ? p.inventory.map((s) => (s && ITEMS[s.id] ? s : null))
             : current.inventory;
-        const effects =
-          Array.isArray(p.effects) &&
-          p.effects.length === current.effects.length &&
-          p.effects.every((l) => effectById.has(l?.id)) &&
-          new Set(p.effects.map((l) => l.id)).size === p.effects.length
-            ? p.effects
-            : current.effects;
+        const effects = reconcileStack(p.effects, current.effects);
         const houseEdits = p.houseEdits && typeof p.houseEdits === 'object' ? p.houseEdits : {};
         if (Object.keys(houseEdits).length) rebuildHouse(houseEdits);
         return {
@@ -540,8 +593,12 @@ export const useGame = create<GameState>()(
           houseEdits,
           prayer: p.prayer && prayerById.has(p.prayer) ? p.prayer : null,
           musicVolume: typeof p.musicVolume === 'number' ? Math.min(1, Math.max(0, p.musicVolume)) : current.musicVolume,
-          musicMode: p.musicMode === 'shuffle' || p.musicMode === 'loop' ? p.musicMode : 'sequence',
+          musicMode: p.musicMode === 'sequence' || p.musicMode === 'shuffle' || p.musicMode === 'loop' ? p.musicMode : 'area',
           musicHeard: p.musicHeard && typeof p.musicHeard === 'object' ? p.musicHeard : {},
+          musicSecrets: p.musicSecrets && typeof p.musicSecrets === 'object' ? p.musicSecrets : {},
+          creatures: Array.isArray(p.creatures)
+            ? p.creatures.map(sanitizeSpec).filter((c): c is CreatureSpec => !!c).slice(0, MAX_CREATURES)
+            : [],
         };
       },
     }

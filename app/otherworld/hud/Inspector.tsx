@@ -8,7 +8,8 @@ import { useArtFx } from '../state/artfx';
 import { emit, sfx } from '../state/events';
 import { runtime } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
-import { getWorld } from '../world/map';
+import { travelToWork } from '../state/actions';
+import { findPlacement } from '../world/places';
 import { useConnections } from './Panels';
 
 const FX_ROWS: { key: keyof ArtFx; label: string }[] = [
@@ -21,12 +22,14 @@ const FX_ROWS: { key: keyof ArtFx; label: string }[] = [
 ];
 
 function walkAlongWire(slug: string) {
-  const world = getWorld();
-  const p = world.placements.find((pl) => pl.work.slug === slug);
-  if (!p) return;
+  const found = findPlacement(slug);
+  if (!found) return;
+  const p = found.placement;
   const g = gameState();
   g.inspect(null);
   emit({ type: 'release-camera' });
+  // the wire runs between places (up the ladder): take the shortcut
+  if (found.place !== g.location) return travelToWork(slug);
   g.say(`You follow the wire toward ${p.work.title}.`);
   g.walkTo(p.approach, () => {
     const it = runtime.interactables.get(`work:${slug}`);

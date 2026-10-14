@@ -83,7 +83,7 @@ export const PANELS = {
     capeTrim: '#efece6',
     caffeineDrain: [1, 0, 4],
   },
-  /** Tony's cat (scene/PetCat.tsx, pet/*). It holds frames with Player.animFps, like you. */
+  /** Tony's cats (content/cat.ts, scene/PetCat.tsx, pet/*). They hold frames with Player.animFps, like you. */
   Cat: {
     enabled: true,
     scale: [1.15, 0.5, 2.5],

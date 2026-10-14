@@ -8,11 +8,12 @@ import { useTweaks } from '../debug/tweaks';
 import { applyItem, replayIntro, resetSave, travelToWork } from '../state/actions';
 import { EFFECTS, EFFECT_PRESETS, effectById } from '../state/effects';
 import { sfx } from '../state/events';
-import { ITEMS, itemName } from '../state/items';
+import { ITEMS, isCatch, itemName } from '../state/items';
 import { runtime } from '../state/runtime';
 import { SKILLS, XP_TABLE, levelForXp, progressToNext } from '../state/skills';
 import { PLUGIN_INFO, gameState, totalLevel, useGame, type Plugins, type Tab } from '../state/store';
 import { getWorld } from '../world/map';
+import { CreatureLab } from './CreatureLab';
 import { HousePanel } from './HouseHud';
 import { MusicPanel } from './MusicPanel';
 import { PRAYERS, prayerById, type PrayerId } from '../state/prayers';
@@ -25,6 +26,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'quests', label: 'Quests' },
   { id: 'layers', label: 'Layers' },
   { id: 'effects', label: 'Effects' },
+  { id: 'lab', label: 'Creature lab' },
   { id: 'prayer', label: 'Prayer' },
   { id: 'house', label: 'House options' },
   { id: 'music', label: 'Music' },
@@ -75,6 +77,7 @@ export function SidePanel() {
         {tab === 'quests' && <Quests />}
         {tab === 'layers' && <Layers />}
         {tab === 'effects' && <Effects />}
+        {tab === 'lab' && <CreatureLab />}
         {tab === 'prayer' && <Prayers />}
         {tab === 'house' && <HousePanel />}
         {tab === 'music' && <MusicPanel />}
@@ -87,6 +90,7 @@ export function SidePanel() {
 // ── inventory ────────────────────────────────────────────────────────────────
 function Inventory() {
   const inventory = useGame((s) => s.inventory);
+  const usingCatch = useGame((s) => s.usingCatch);
   const openMenu = useGame((s) => s.openMenu);
   return (
     <div className="ow-inv">
@@ -102,6 +106,8 @@ function Inventory() {
               y,
               options: [
                 { verb: def.primary, target: name, tone: 'item', run: () => (gameState().closeMenu(), applyItem(slot, def.primary)) },
+                ...(isCatch(stack.id) ? [{ verb: 'Use on…', target: name, tone: 'item' as const,
+                  run: () => (gameState().closeMenu(), applyItem(slot, 'Use on…')) }] : []),
                 { verb: 'Drop', target: name, tone: 'item', run: () => (gameState().closeMenu(), applyItem(slot, 'Drop')) },
                 { verb: 'Examine', target: name, tone: 'item', run: () => (gameState().closeMenu(), applyItem(slot, 'Examine')) },
                 { verb: 'Cancel', tone: 'plain', run: () => gameState().closeMenu() },
@@ -110,7 +116,8 @@ function Inventory() {
           () => applyItem(slot, def.primary)
         );
         return (
-          <button key={slot} className="ow-inv-slot" title={`${def.primary} ${name}`} {...handlers}>
+          <button key={slot} className="ow-inv-slot" data-using={usingCatch?.slot === slot}
+            aria-pressed={usingCatch?.slot === slot} title={`${def.primary} ${name}`} {...handlers}>
             <ItemIcon id={stack.id} />
             {stack.quantity != null && stack.quantity > 1 && <span className="ow-inv-qty">{stack.quantity}</span>}
           </button>
@@ -370,7 +377,8 @@ function Effects() {
         })}
       </ol>
       <p className="ow-hint">
-        Every row is a real shader pass over the world, applied top to bottom. {EFFECTS.length} effects, one draw call.
+        Every row is a real shader pass over the world, applied top to bottom. {EFFECTS.length} effects, one draw call
+        (Echo adds a feedback buffer).
       </p>
     </div>
   );

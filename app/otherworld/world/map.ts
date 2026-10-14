@@ -8,7 +8,9 @@
  * Corner heights live on a (SIZE+1)² lattice, like an old-school heightmap.
  */
 import { works, tagColors, type Work } from '@/content/works';
-import { zones, zoneById, type Zone } from '@/content/zones';
+import { FISHING_SPOTS, POND } from '@/content/fishing';
+// Only the island's own zones: off-island ones (the basement) are laid out by their place.
+import { islandZones as zones, zoneById, type Zone } from '@/content/zones';
 import { clamp, fbm, hashString, lerp, mulberry32, smoothstep } from '../lib/random';
 
 export const SIZE = 72;
@@ -26,6 +28,8 @@ export const T = {
   Soil: 7,
   Ruin: 8,
   DarkMoss: 9,
+  Canvas: 10,
+  Water: 11,
 } as const;
 export type TileKind = (typeof T)[keyof typeof T];
 
@@ -57,7 +61,16 @@ export type FixtureKind =
   | 'pot'
   | 'fallen-frame'
   | 'datapoints'
-  | 'ring';
+  | 'ring'
+  | 'figma-hub'
+  | 'trapdoor'
+  | 'timeline'
+  | 'agents'
+  | 'cursors'
+  // the basement
+  | 'ladder'
+  | 'decks'
+  | 'flyer';
 
 export interface Fixture {
   id: string;
@@ -75,12 +88,15 @@ export interface Fixture {
 
 export interface Edge {
   id: number;
-  kind: 'road' | 'link';
+  /** road: spawn → zone bus · link: related works · harness: loose wiring into a set piece */
+  kind: 'road' | 'link' | 'harness';
   a: string;
   b: string;
   color: string;
   weight: number;
   points: [number, number][];
+  /** Strung through the air instead of lying on the ground: start height, end height, sag. */
+  air?: [from: number, to: number, sag: number];
 }
 
 export interface TreeProp {
@@ -259,6 +275,16 @@ function generate(): WorldMap {
             case 'mushroom':
               kind = T.DarkMoss;
               break;
+            case 'canvas':
+              kind = d < zone.radius - 1 ? T.Canvas : T.Grass;
+              break;
+            case 'pond': {
+              const [rx, rz] = POND.waterRadius;
+              const wet = ((x - POND.center[0]) / rx) ** 2 + ((z - POND.center[1]) / rz) ** 2 < 1;
+              kind = wet ? T.Water : d < zone.radius - 0.5 ? T.Moss : T.Grass;
+              if (wet) blocked[k] = 1;
+              break;
+            }
           }
         }
       });
@@ -270,6 +296,12 @@ function generate(): WorldMap {
     const [i, j] = worldToTile(x, z);
     if (inBounds(i, j)) blocked[tileIndex(i, j)] = 1;
   };
+  // Lower the whole water footprint beneath one level surface, including its corners.
+  for (let j = 0; j < SIZE; j++) for (let i = 0; i < SIZE; i++) {
+    if (tiles[tileIndex(i, j)] !== T.Water) continue;
+    for (const [di, dj] of [[0, 0], [1, 0], [0, 1], [1, 1]])
+      heights[cornerIndex(i + di, j + dj)] = -0.32;
+  }
   const tileOf = (x: number, z: number): [number, number] => worldToTile(x, z);
   const groundY = (x: number, z: number) =>
     heightAt({ heights } as WorldMap, x, z);
@@ -295,24 +327,51 @@ function generate(): WorldMap {
     const trees = inZone.filter((w) => w.display === 'tree');
     const backOffset = zone.biome === 'mushroom' ? 3.9 : zone.biome === 'garden' ? 3.2 : 1.6;
 
-    boards.forEach((work, k) => {
-      const offset = (k - (boards.length - 1) / 2) * 4.6;
-      const x = zone.center[0] - toSpawn[0] * backOffset + perp[0] * offset;
-      const z = zone.center[1] - toSpawn[1] * backOffset + perp[1] * offset;
-      for (let s = -1.7; s <= 1.7; s += 0.5) markBlocked(x + perp[0] * s, z + perp[1] * s);
-      placements.push({
-        work,
-        index: works.indexOf(work),
-        display: 'artboard',
-        x,
-        z,
-        y: groundY(x, z),
-        yaw,
-        approach: tileOf(x + toSpawn[0] * 2.1, z + toSpawn[1] * 2.1),
-        port: [x + toSpawn[0] * 0.55, z + toSpawn[1] * 0.55],
-        portDir: toSpawn,
+    // Lots of frames: a horseshoe round the back of the zone, all facing in,
+    // leaving the side towards spawn open as the way in.
+    if (boards.length > 3) {
+      const back = Math.atan2(-toSpawn[1], -toSpawn[0]);
+      const r = zone.radius * 0.72;
+      boards.forEach((work, k) => {
+        const a = back + (k - (boards.length - 1) / 2) * 0.78;
+        const x = zone.center[0] + Math.cos(a) * r;
+        const z = zone.center[1] + Math.sin(a) * r;
+        const inward: [number, number] = [-Math.cos(a), -Math.sin(a)];
+        const side: [number, number] = [-inward[1], inward[0]];
+        for (let s = -1.7; s <= 1.7; s += 0.5) markBlocked(x + side[0] * s, z + side[1] * s);
+        placements.push({
+          work,
+          index: works.indexOf(work),
+          display: 'artboard',
+          x,
+          z,
+          y: groundY(x, z),
+          yaw: Math.atan2(inward[0], inward[1]),
+          approach: tileOf(x + inward[0] * 2.1, z + inward[1] * 2.1),
+          port: [x + inward[0] * 0.55, z + inward[1] * 0.55],
+          portDir: inward,
+        });
       });
-    });
+    } else {
+      boards.forEach((work, k) => {
+        const offset = (k - (boards.length - 1) / 2) * 4.6;
+        const x = zone.center[0] - toSpawn[0] * backOffset + perp[0] * offset;
+        const z = zone.center[1] - toSpawn[1] * backOffset + perp[1] * offset;
+        for (let s = -1.7; s <= 1.7; s += 0.5) markBlocked(x + perp[0] * s, z + perp[1] * s);
+        placements.push({
+          work,
+          index: works.indexOf(work),
+          display: 'artboard',
+          x,
+          z,
+          y: groundY(x, z),
+          yaw,
+          approach: tileOf(x + toSpawn[0] * 2.1, z + toSpawn[1] * 2.1),
+          port: [x + toSpawn[0] * 0.55, z + toSpawn[1] * 0.55],
+          portDir: toSpawn,
+        });
+      });
+    }
 
     const entranceAngle = Math.atan2(toSpawn[1], toSpawn[0]);
     trees.forEach((work, k) => {
@@ -364,21 +423,25 @@ function generate(): WorldMap {
   const [mx, mz] = z('modyfi');
   fixture({ id: 'hut', kind: 'hut', name: 'Minky Hut Jr.', zone: 'modyfi', x: mx + 2.6, z: mz + 2.2, yaw: Math.PI * 0.8, block: 0.7 });
 
-  const [rx, rz] = z('reset');
-  ['2020', '2021', '2022'].forEach((year, k) => {
-    fixture({
-      id: `monolith-${year}`,
-      kind: 'monolith',
-      name: year,
-      label: year,
-      zone: 'reset',
-      x: rx + 3.4 - k * 0.2,
-      z: rz - 2.2 + k * 2.2,
-      yaw: -Math.PI / 2 - 0.2,
-      block: 0.4,
-    });
-  });
-  fixture({ id: 'door', kind: 'door', name: 'Underpass door', zone: 'reset', x: rx + 1.5, z: rz - 4.6, yaw: 0, block: 0.6 });
+  // Figma: the hub every wire runs into, the Motion timeline on the floor, the
+  // agent switchboard, the multiplayer cursors, and the trapdoor down to RESET.
+  const [fx, fz] = z('figma');
+  const figIn: [number, number] = [-fx / Math.hypot(fx, fz), -fz / Math.hypot(fx, fz)];
+  /** u tiles towards spawn, v tiles across. */
+  const figAt = (u: number, v: number): [number, number] => [fx + figIn[0] * u - figIn[1] * v, fz + figIn[1] * u + figIn[0] * v];
+  const facing = (x: number, z: number, tx: number, tz: number) => Math.atan2(tx - x, tz - z);
+  const spawnYaw = Math.atan2(figIn[0], figIn[1]);
+  {
+    const [hx, hz] = figAt(-0.6, 0);
+    fixture({ id: 'figma-hub', kind: 'figma-hub', name: 'Expressive Design', zone: 'figma', x: hx, z: hz, yaw: spawnYaw, block: 0.9 });
+    const [tx, tz] = figAt(2.7, 0);
+    fixture({ id: 'timeline', kind: 'timeline', name: 'Timeline', zone: 'figma', x: tx, z: tz, yaw: spawnYaw, block: 0 });
+    const [dx, dz] = figAt(1.2, 4.2);
+    fixture({ id: 'trapdoor', kind: 'trapdoor', name: 'Trapdoor', zone: 'figma', x: dx, z: dz, yaw: facing(dx, dz, fx, fz), block: 0.5 });
+    const [ax2, az2] = figAt(1.2, -4.2);
+    fixture({ id: 'agents', kind: 'agents', name: 'Agent switchboard', zone: 'figma', x: ax2, z: az2, yaw: facing(ax2, az2, fx, fz), block: 0.7 });
+    fixture({ id: 'cursors', kind: 'cursors', name: 'Multiplayer cursors', zone: 'figma', x: fx, z: fz, yaw: 0, block: 0 });
+  }
 
   const [gx, gz] = z('garden');
   {
@@ -413,7 +476,7 @@ function generate(): WorldMap {
   };
 
   for (const zone of zones) {
-    if (zone.id === 'spawn') continue;
+    if (zone.id === 'spawn' || zone.secluded) continue;
     const dx = zone.center[0] - spawnZone.center[0];
     const dz = zone.center[1] - spawnZone.center[1];
     const len = Math.hypot(dx, dz);
@@ -481,8 +544,60 @@ function generate(): WorldMap {
     if (nearest) addLink(pa, nearest, 0.5, '#71717a');
   }
 
+  // 6b. The Figma harness: every zone runs a bundle of wires into the hub, the
+  // hub is strung to its frames overhead, the switchboard patches into every
+  // frame, and one fat wire goes down the trapdoor.
+  {
+    const hub = fixtures.find((f) => f.id === 'figma-hub')!;
+    const agents = fixtures.find((f) => f.id === 'agents')!;
+    const trap = fixtures.find((f) => f.id === 'trapdoor')!;
+    const figBoards = placements.filter((p) => p.work.zone === 'figma' && p.display === 'artboard');
+    const harness = (a: string, b: string, color: string, from: [number, number], to: [number, number], bend: number, air?: Edge['air']) => {
+      const d: [number, number] = [to[0] - from[0], to[1] - from[1]];
+      const n: [number, number] = [-d[1] * bend, d[0] * bend];
+      const c0: [number, number] = [from[0] + d[0] * 0.3 + n[0], from[1] + d[1] * 0.3 + n[1]];
+      const c1: [number, number] = [from[0] + d[0] * 0.7 + n[0] * 0.6, from[1] + d[1] * 0.7 + n[1] * 0.6];
+      edges.push({ id: edgeId++, kind: 'harness', a, b, color, weight: 1, points: bezier(from, c0, c1, to, 0.4), air });
+    };
+    const around = (f: Fixture, toward: [number, number], r: number, spread: number): [number, number] => {
+      const a = Math.atan2(toward[1] - f.z, toward[0] - f.x) + spread;
+      return [f.x + Math.cos(a) * r, f.z + Math.sin(a) * r];
+    };
+    for (const zone of zones) {
+      if (zone.id === 'figma' || zone.secluded) continue;
+      const dx = hub.x - zone.center[0];
+      const dz = hub.z - zone.center[1];
+      const len = Math.hypot(dx, dz);
+      const strands = zone.id === 'spawn' ? 3 : 2;
+      for (let s = 0; s < strands; s++) {
+        const off = (s - (strands - 1) / 2) * 0.35;
+        const from: [number, number] = [
+          zone.center[0] + (dx / len) * (zone.radius - 1.2) - (dz / len) * off,
+          zone.center[1] + (dz / len) * (zone.radius - 1.2) + (dx / len) * off,
+        ];
+        const to = around(hub, zone.center, 0.95, off * 0.9);
+        const colors = [zone.color, '#a259ff', '#0acf83'];
+        harness(`zone:${zone.id}`, 'fixture:figma-hub', colors[s % colors.length], from, to, (rand() - 0.5) * 0.35 + off * 0.12);
+      }
+    }
+    figBoards.forEach((p, k) => {
+      // overhead: hub crown → top of each frame
+      harness('fixture:figma-hub', p.work.slug, '#a259ff', [hub.x, hub.z], [p.x, p.z], 0.02 * (k % 2 ? 1 : -1), [3.3, 2.75, 0.55]);
+      // on the floor: hub → frame port, switchboard → frame port
+      harness('fixture:figma-hub', p.work.slug, '#f24e1e', around(hub, p.port, 0.95, 0), p.port, 0.12 * (k % 2 ? 1 : -1));
+      harness('fixture:agents', p.work.slug, '#0acf83', around(agents, p.port, 0.8, 0), p.port, 0.18);
+    });
+    harness('fixture:agents', 'fixture:figma-hub', '#0acf83', [agents.x, agents.z], [hub.x, hub.z], -0.1, [1.9, 3.1, 0.4]);
+    harness('fixture:figma-hub', 'reset-presents', '#6366f1', around(hub, [trap.x, trap.z], 0.95, 0), around(trap, [hub.x, hub.z], 0.55, 0), 0.08);
+    const audio = figBoards.find((p) => p.work.slug === 'figma-motion-audio');
+    if (audio) harness('figma-motion-audio', 'reset-presents', '#6366f1', audio.port, around(trap, audio.port, 0.55, 0), -0.15);
+  }
+
   // 7. Scatter: trees, rocks, grass tufts, amanitas
   const keepClear: [number, number, number][] = [
+    ...FISHING_SPOTS.map((s) => [s.bank[0], s.bank[1], 2.5] as [number, number, number]),
+    [POND.rod[0], POND.rod[1], 2.5],
+    [POND.entry[0], POND.entry[1], 2.2],
     ...placements.map((p) => [p.x, p.z, p.display === 'tree' ? 1.6 : 3] as [number, number, number]),
     ...fixtures.map((f) => [f.x, f.z, f.kind === 'house-portal' ? 3.2 : 2.2] as [number, number, number]),
   ];
@@ -497,7 +612,7 @@ function generate(): WorldMap {
     for (let i = 1; i < SIZE - 1; i++) {
       const k = tileIndex(i, j);
       const kind = tiles[k];
-      if (kind === T.Void) continue;
+      if (kind === T.Void || kind === T.Water) continue;
       const [cx, cz] = tileCenter(i, j);
       const x = cx + (rand() - 0.5) * 0.6;
       const zz = cz + (rand() - 0.5) * 0.6;

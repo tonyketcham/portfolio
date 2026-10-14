@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Tony's cat, loose in the house: the model (../pet/cat), what it gets up to
+ * One of Tony's cats (content/cat.ts), loose in the house: the model (../pet/cat), what it gets up to
  * (../pet/brain) and its right-click verbs (../pet/actions). It only exists
  * while you're home; on the island it's hidden and frozen mid-thought.
  */
@@ -9,11 +9,11 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { CAT } from '@/content/cat';
+import { CAT, type CatCoat } from '@/content/cat';
 import { tweaks, type Tweaks } from '../debug/tweaks';
 import { glowMaterial, houseUniforms } from '../house/materials';
 import { damp } from '../lib/random';
-import { CAT_ID, CAT_EXAMINE, catApproach, catPlayer, linkCat, petCat, pickUpCat, talkToCat } from '../pet/actions';
+import { catApproach, catId, catPlayer, linkCat, petCat, pickUpCat, talkToCat } from '../pet/actions';
 import { CatBrain, type CatSettings } from '../pet/brain';
 import { CatModel } from '../pet/cat';
 import { houseCatWorld } from '../pet/world';
@@ -41,23 +41,23 @@ const tmpHead = new THREE.Vector3();
 const tmpLook = new THREE.Vector3();
 
 /** Everything the cat is made of, built once. */
-function buildCat() {
-  const model = new CatModel();
+function buildCat(coat: CatCoat) {
+  const model = new CatModel(coat);
   const root = new THREE.Group();
-  root.name = 'pet-cat';
-  root.userData.interactable = CAT_ID;
+  root.name = `pet-${coat.id}`;
+  root.userData.interactable = catId(coat);
   root.visible = false;
   root.add(model.group);
   // a generous invisible click box; picking skips the skinned mesh itself
   const hit = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.5, 0.72).translate(0, 0.25, 0.02), new THREE.MeshBasicNodeMaterial({ visible: false }));
-  hit.name = 'pet-cat-hit';
+  hit.name = `pet-${coat.id}-hit`;
   model.group.add(hit);
   model.mesh.raycast = () => undefined;
   // z's, in world space so they always face the camera
   const zs = new THREE.Group();
   zs.visible = false;
   const zGeo = zGeometry();
-  for (let i = 0; i < 2; i++) zs.add(new THREE.Mesh(zGeo, glowMaterial(CAT.dream)));
+  for (let i = 0; i < 2; i++) zs.add(new THREE.Mesh(zGeo, glowMaterial(coat.dream)));
   const dispose = () => {
     hit.geometry.dispose();
     (hit.material as THREE.Material).dispose();
@@ -67,16 +67,17 @@ function buildCat() {
   return { model, root, zs, dispose, speed: 0, anchor: new THREE.Vector3() };
 }
 
-export function PetCat() {
-  const s = useMemo(buildCat, []);
+export function PetCat({ coat = CAT }: { coat?: CatCoat }) {
+  const id = catId(coat);
+  const s = useMemo(() => buildCat(coat), [coat]);
   const { model } = s;
-  const brain = useMemo(() => new CatBrain(houseCatWorld()), []);
+  const brain = useMemo(() => new CatBrain(houseCatWorld(coat.basket)), [coat]);
   useEffect(() => s.dispose, [s]);
   /** Above its head, while it's around. */
   const anchor = useMemo(() => () => (s.root.visible ? s.anchor.clone() : null), [s]);
 
   // the basket and the menu can find it
-  useEffect(() => linkCat({ brain, anchor }), [brain, anchor]);
+  useEffect(() => linkCat({ coat, brain, anchor }), [coat, brain, anchor]);
 
   // furniture built or removed: re-check where it can walk
   useEffect(() => onHouseChange(() => brain.layoutChanged()), [brain]);
@@ -84,20 +85,21 @@ export function PetCat() {
   useEffect(
     () =>
       registerInteractable({
-        id: CAT_ID,
-        name: CAT.name,
+        id,
+        catchTarget: 'cat',
+        name: coat.name,
         tone: 'npc',
         object: () => s.root,
-        examine: CAT_EXAMINE,
-        approach: catApproach,
+        examine: coat.examine,
+        approach: () => catApproach(id),
         actions: [
-          { verb: 'Pet', approach: true, run: () => petCat() },
-          { verb: 'Talk-to', approach: true, run: () => talkToCat() },
-          { verb: 'Pick-up', approach: true, run: () => pickUpCat() },
+          { verb: 'Pet', approach: true, run: () => petCat(id) },
+          { verb: 'Talk-to', approach: true, run: () => talkToCat(id) },
+          { verb: 'Pick-up', approach: true, run: () => pickUpCat(id) },
         ],
         dimensions: () => '1 × 1 tile · 9 lives',
       }),
-    [s]
+    [s, id, coat]
   );
 
   useFrame((state, rawDt) => {
@@ -114,19 +116,19 @@ export function PetCat() {
 
     // what it says and does on a whim
     for (const e of brain.events.splice(0)) {
-      if (e.type === 'meow') npcSay(CAT_ID, e.text, anchor, 2.4);
+      if (e.type === 'meow') npcSay(id, e.text, anchor, 2.4);
       else if (e.type === 'flick') model.flick();
       else model.twitch();
     }
 
     s.root.position.set(brain.px, brain.y, brain.pz);
     s.root.rotation.y = brain.yaw;
-    model.group.scale.setScalar(t.scale);
+    model.group.scale.setScalar(t.scale * coat.size);
     s.speed = damp(s.speed, brain.gait, 10, dt);
 
     let look: { x: number; y: number; z: number } | null = null;
     if (brain.look) {
-      tmpLook.set(brain.look.x, 1.5, brain.look.z).sub(s.root.position).applyAxisAngle(THREE.Object3D.DEFAULT_UP, -brain.yaw).divideScalar(t.scale);
+      tmpLook.set(brain.look.x, 1.5, brain.look.z).sub(s.root.position).applyAxisAngle(THREE.Object3D.DEFAULT_UP, -brain.yaw).divideScalar(t.scale * coat.size);
       look = tmpLook;
     }
     model.update({
@@ -153,7 +155,7 @@ export function PetCat() {
         // drift up and off to screen-right
         const side = 0.06 + u * 0.12;
         z.position.set(tmpHead.x + Math.cos(yaw) * side, tmpHead.y + u * 0.42, tmpHead.z - Math.sin(yaw) * side);
-        z.scale.setScalar((0.55 + u * 0.7) * t.scale);
+        z.scale.setScalar((0.55 + u * 0.7) * t.scale * coat.size);
         z.rotation.y = yaw;
         z.visible = u < 0.85;
       });

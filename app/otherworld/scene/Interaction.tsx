@@ -15,6 +15,8 @@ import * as THREE from 'three';
 import { tweaks } from '../debug/tweaks';
 import { clamp } from '../lib/random';
 import { examine } from '../state/actions';
+import { cancelCatchUse, useCatchOn } from '../state/catch-actions';
+import { itemName } from '../state/items';
 import { emit, sfx } from '../state/events';
 import { interactableFor, place, runtime, type InteractAction, type Interactable } from '../state/runtime';
 import { gameState, type MenuOption } from '../state/store';
@@ -101,6 +103,13 @@ function openMenuAt(x: number, y: number) {
   const hits = pickInteractables(x, y, 4, true);
   const ground = pickGround(x, y);
   const options: MenuOption[] = [];
+  if (g.usingCatch) {
+    for (const it of hits) options.push({ verb: `Use ${itemName(g.usingCatch.stack)} on`, target: displayName(it),
+      tone: it.tone, run: () => useCatchOn(it) });
+    options.push({ verb: 'Cancel use', tone: 'plain', run: () => { cancelCatchUse(); gameState().closeMenu(); } });
+    g.openMenu({ x, y, options });
+    return;
+  }
   for (const it of hits) {
     for (const action of it.actions) {
       options.push({ verb: action.verb, target: displayName(it), tone: it.tone, run: () => runAction(it, action) });
@@ -167,6 +176,12 @@ function handleTap(x: number, y: number, alt = false) {
     return;
   }
   if (g.stage !== 'world') return;
+  if (g.usingCatch) {
+    const target = pickInteractables(x, y, 1, true)[0];
+    if (target) useCatchOn(target);
+    else cancelCatchUse();
+    return;
+  }
   if (g.dialogue) g.setDialogue(null);
 
   const hits = pickInteractables(x, y, 1);
@@ -226,7 +241,7 @@ export function Interaction() {
       hoverQueued = false;
       const g = gameState();
       if (!runtime.pointer.inside || runtime.pointer.isTouch || g.stage !== 'world' || mode === 'drag') return;
-      const hits = pickInteractables(runtime.pointer.x, runtime.pointer.y, 1);
+      const hits = pickInteractables(runtime.pointer.x, runtime.pointer.y, 1, !!g.usingCatch);
       runtime.hoverId = hits[0]?.id ?? null;
       const ground = pickGround(runtime.pointer.x, runtime.pointer.y);
       if (lastHoverTile) place().tiles.set(lastHoverTile[0], lastHoverTile[1], TileChannel.Hover, false);
@@ -289,7 +304,7 @@ export function Interaction() {
       mode = 'tap';
       const g = gameState();
       dragCandidate = null;
-      if (g.stage === 'world' && g.tool === 'move') {
+      if (g.stage === 'world' && g.tool === 'move' && !g.usingCatch) {
         const top = pickInteractables(e.clientX, e.clientY, 1)[0];
         if (top?.drag) dragCandidate = top;
       }
@@ -454,7 +469,8 @@ export function Interaction() {
       if (e.key === '-' || e.key === '_') runtime.cam.distance *= 1.18;
       if (e.key === 'Escape') {
         const g = gameState();
-        if (g.menu) g.closeMenu();
+        if (g.usingCatch) { cancelCatchUse(); g.closeMenu(); }
+        else if (g.menu) g.closeMenu();
         else if (g.inspecting) {
           g.inspect(null);
           emit({ type: 'release-camera' });

@@ -12,6 +12,7 @@
 import * as THREE from 'three/webgpu';
 import { abs, attribute, float, floor, fract, frontFacing, max, mix, normalView, output, positionView, select, step, uniform, vec2, vec3, vec4 } from 'three/tsl';
 import { Kit } from '../house/kit';
+import { fishingRodGeometry } from './fishingRod';
 import { v3 } from '../shaders/common';
 import {
   B,
@@ -43,6 +44,7 @@ import { DIM, gait, newFrame, poseFrame, type PoseFrame, type PoseKind, type Pro
 
 
 function propGeometry(id: PropId) {
+  if (id === 'fishing-rod') return fishingRodGeometry();
   const k = new Kit(19);
   k.push([0, 0, 0], [0, 0, 0], 1.45);
   switch (id) {
@@ -279,7 +281,7 @@ export class Avatar {
     this.bones[B.chest].add(this.capePivot, this.tag);
     this.dress();
 
-    for (const id of ['hammer', 'saw', 'book', 'cup'] as PropId[]) {
+    for (const id of ['hammer', 'saw', 'book', 'cup', 'fishing-rod'] as PropId[]) {
       const p = new THREE.Mesh(propGeometry(id), this.propMaterial);
       p.castShadow = true;
       p.visible = false;

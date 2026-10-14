@@ -6,7 +6,7 @@ export const profile = {
   name: 'Tony Ketcham',
   pronouns: 'he / they',
   title: 'Design Engineer building design tools',
-  lines: ['Design Engineer building design tools', 'Tea collector', 'Generative artist'],
+  lines: ['Design Engineer building design tools', 'Expressive Design at Figma', 'Tea collector', 'Generative artist'],
   links: [
     { label: 'GitHub', href: 'https://github.com/tonyketcham' },
     { label: 'Modyfi', href: 'https://modyfi.com' },

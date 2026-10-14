@@ -15,10 +15,11 @@
 
 export type V3 = [number, number, number];
 
-export type PropId = 'hammer' | 'saw' | 'book' | 'cup';
+export type PropId = 'hammer' | 'saw' | 'book' | 'cup' | 'fishing-rod';
 
 export type PoseKind =
   | 'stand'
+  | 'fish'
   | 'sit'
   | 'sit-floor'
   | 'build'
@@ -523,7 +524,20 @@ function yawn(f: PoseFrame, t: number) {
   }
 }
 
+function fish(f: PoseFrame, t: number) {
+  stand(f, t);
+  const cast = Math.max(0, 1 - t / 0.7);
+  const bob = Math.sin(t * 1.8) * 0.015;
+  f.lean = 0.06;
+  f.head = [0.12, 0, 0];
+  set(f.hands[1], -0.19, 1.05 + bob + cast * 0.2, 0.32);
+  set(f.hands[0], 0.06, 1.02 + bob, 0.3);
+  f.prop = 'fishing-rod';
+  f.propRot = [0.9 - cast * 1.4, 0, -0.08];
+}
+
 export const POSES: Record<PoseKind, PoseDef> = {
+  fish: { dur: Infinity, frame: fish },
   stand: { dur: Infinity, frame: stand },
   sit: { dur: Infinity, frame: sit },
   'sit-floor': { dur: Infinity, frame: sitFloor },

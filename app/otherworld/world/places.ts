@@ -1,17 +1,19 @@
 /**
- * Places: the island (the town) and the player-owned house. Both expose the
- * same tile-grid interface so the player, the pathfinder, picking and the HUD
+ * Places: the island (the town), the player-owned house and the basement
+ * under the Figma zone. All expose the same tile-grid interface so the player, the pathfinder, picking and the HUD
  * don't care which one they're in.
  */
 import { house as baseHouse } from '@/content/house';
+import { zoneById } from '@/content/zones';
 import { createHouseTileState, type HouseTileState } from '../house/architecture';
 import { buildLayout, houseCanStep, houseInside, houseTileCenter, houseWalkable, houseWorldToTile, roomOf, HOUSE_ORIGIN, type HouseLayout } from '../house/layout';
 import type { HouseDesign } from '../house/types';
 import { tileState } from '../shaders/terrain';
+import { BASEMENT, basementCentre, basementInBounds, basementTileCenter, basementWalkable, basementWorldToTile, getBasement } from './basement';
 import { SIZE, getWorld, heightAt, inBounds, isWalkable, tileCenter, worldToTile, zoneAt } from './map';
 import type { Grid, TilePos } from './pathfinding';
 
-export type PlaceId = 'island' | 'house';
+export type PlaceId = 'island' | 'house' | 'basement';
 
 export interface TileOverlay {
   set(i: number, j: number, channel: number, on: boolean): void;
@@ -142,10 +144,48 @@ export const house: Place = {
   },
 };
 
-export const PLACES: Record<PlaceId, Place> = { island, house };
+// ── basement ─────────────────────────────────────────────────────────────────
+export const basementTiles = createHouseTileState({ width: BASEMENT.w, height: BASEMENT.h });
 
-/** Which place a world position belongs to (the house sits far from the island). */
+export const basement: Place = {
+  id: 'basement',
+  name: 'The Underpass',
+  width: BASEMENT.w,
+  height: BASEMENT.h,
+  get spawn() {
+    return [...getBasement().spawn] as TilePos;
+  },
+  centre: basementCentre,
+  inBounds: basementInBounds,
+  walkable: basementWalkable,
+  canStep(i, j, di, dj) {
+    if (!basementWalkable(i + di, j + dj)) return false;
+    if (di !== 0 && dj !== 0) return basementWalkable(i + di, j) && basementWalkable(i, j + dj);
+    return true;
+  },
+  tileCenter: basementTileCenter,
+  worldToTile: basementWorldToTile,
+  heightAt: () => 0,
+  tiles: basementTiles,
+  area() {
+    const zone = zoneById.get('reset')!;
+    return { id: zone.id, name: zone.name, arrival: zone.arrival };
+  },
+};
+
+export const PLACES: Record<PlaceId, Place> = { island, house, basement };
+
+/** Which place a world position belongs to (the house and the basement sit far from the island). */
 export function placeAt(x: number, z: number): Place {
+  if (Math.hypot(x - basementCentre[0], z - basementCentre[1]) < 40) return basement;
   return Math.hypot(x - HOUSE_ORIGIN.x, z - HOUSE_ORIGIN.z) < 60 ? house : island;
+}
+
+/** Where a work hangs: the island's placements, or the basement's. */
+export function findPlacement(slug: string) {
+  const onIsland = getWorld().placements.find((p) => p.work.slug === slug);
+  if (onIsland) return { place: 'island' as PlaceId, placement: onIsland };
+  const below = getBasement().placements.find((p) => p.work.slug === slug);
+  return below ? { place: 'basement' as PlaceId, placement: below } : null;
 }
 

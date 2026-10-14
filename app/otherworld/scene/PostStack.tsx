@@ -25,7 +25,7 @@ export function PostStack() {
   const post = useMemo(() => createPost(renderer, scene, camera), [renderer, scene, camera]);
   const key = useRef<string | null>(null);
 
-  useEffect(() => () => post.pipeline.dispose(), [post]);
+  useEffect(() => () => post.dispose(), [post]);
 
   useFrame((_, dt) => {
     const g = gameState();

@@ -3,6 +3,7 @@
  * sound effects, particle bursts, camera shake, physics spawns.
  */
 export type GameEvent =
+  | { type: 'catch-gag'; item: import('./items').CatchId; variant: number; label: string; target: string | null; location: import('../world/places').PlaceId }
   | { type: 'sfx'; name: SfxName; pitch?: number }
   | {
       type: 'burst';
@@ -12,7 +13,7 @@ export type GameEvent =
       z: number;
       count?: number;
     }
-  | { type: 'travel'; to: 'house' | 'island'; tile?: [number, number]; onArrive?: () => void }
+  | { type: 'travel'; to: 'house' | 'island' | 'basement'; tile?: [number, number]; onArrive?: () => void }
   | { type: 'shake'; amount: number }
   | { type: 'spawn-letters'; text: string }
   | { type: 'drop-item'; item: import('./items').ItemStack }
@@ -48,7 +49,11 @@ export type SfxName =
   | 'bell'
   | 'kettle'
   | 'prayer-on'
-  | 'prayer-off';
+  | 'prayer-off'
+  | 'chirp'
+  | 'spawn'
+  | 'clunk'
+  | 'grind';
 
 type Listener = (event: GameEvent) => void;
 const listeners = new Set<Listener>();

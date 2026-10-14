@@ -3,15 +3,16 @@
 import type { RefObject } from 'react';
 /**
  * Hand-built set pieces: the tea stall, Tony, the signpost, Minky Hut Jr.,
- * RESET's year monoliths and door, the p5 fractal tree and curry pot, the
- * ruins, and the fairy ring.
+ * the p5 fractal tree and curry pot, the ruins, and the fairy ring. RESET's
+ * year monoliths and door are here too, but stand in the basement (Basement.tsx);
+ * the Figma zone's pieces live in Figma.tsx.
  */
 import { useFrame } from '@react-three/fiber';
 import { CuboidCollider, CylinderCollider, RigidBody } from '@react-three/rapier';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { workBySlug } from '@/content/works';
-import { zones } from '@/content/zones';
+import { islandZones } from '@/content/zones';
 import { canvasTexture } from '../house/furniture/common';
 import { arch, portalSurface } from '../house/furniture/garden';
 import { Kit } from '../house/kit';
@@ -21,14 +22,16 @@ import { cssFont } from '../lib/textures';
 import { toggleBuildMode, travel } from '../state/actions';
 import { emit, on, sfx } from '../state/events';
 import { TEAS } from '../state/items';
-import { npcSay, registerInteractable, runtime, type InteractAction } from '../state/runtime';
+import { npcSay, registerInteractable, runtime, type InteractAction, type Interactable } from '../state/runtime';
 import { gameState, useGame } from '../state/store';
 import { getWorld, type Fixture } from '../world/map';
 import { revealScale } from './globals';
+import { beat } from './beat';
 import { Label } from './Label';
+import { AgentSwitchboard, Cursors, FigmaHub, Timeline, Trapdoor } from './Figma';
 import { Revealed } from './Revealed';
 
-function useReveal(fixture: Fixture, ref: RefObject<THREE.Group | null>) {
+export function useReveal(fixture: Fixture, ref: RefObject<THREE.Group | null>) {
   const hidden = useGame((s) => !!s.hidden[`fixture:${fixture.id}`]);
   useFrame(() => {
     if (!ref.current) return;
@@ -38,16 +41,23 @@ function useReveal(fixture: Fixture, ref: RefObject<THREE.Group | null>) {
   });
 }
 
-function useFixture(
+export function useFixture(
   fixture: Fixture,
   ref: RefObject<THREE.Object3D | null>,
-  def: { name?: string; tone?: 'npc' | 'object'; examine: string; actions: InteractAction[]; level?: number; dims?: string },
+  def: { name?: string; tone?: 'npc' | 'object'; examine: string; actions: InteractAction[]; level?: number; dims?: string; passive?: boolean },
   deps: unknown[] = []
 ) {
+  useEffect(() => {
+    // so a ray hitting any mesh inside finds its way back here
+    if (ref.current) ref.current.userData.interactable = `fixture:${fixture.id}`;
+  });
   useEffect(
     () =>
       registerInteractable({
         id: `fixture:${fixture.id}`,
+        catchTarget: ({ 'fallen-frame': 'frame', 'house-portal': 'portal', ring: 'portal', stall: 'tea',
+          'figma-hub': 'machine', agents: 'machine' } as Partial<Record<Fixture['kind'], Interactable['catchTarget']>>)[fixture.kind],
+        passive: def.passive,
         name: def.name ?? fixture.name,
         tone: def.tone ?? 'object',
         level: def.level,
@@ -63,7 +73,7 @@ function useFixture(
   );
 }
 
-const lambert = (color: string) => new THREE.MeshLambertMaterial({ color, flatShading: true });
+export const lambert = (color: string) => new THREE.MeshLambertMaterial({ color, flatShading: true });
 
 // ── Tea stall ────────────────────────────────────────────────────────────────
 function TeaStall({ fixture }: { fixture: Fixture }) {
@@ -358,7 +368,7 @@ function Tony({ fixture }: { fixture: Fixture }) {
 function Signpost({ fixture }: { fixture: Fixture }) {
   const group = useRef<THREE.Group>(null);
   useReveal(fixture, group);
-  const targets = zones.filter((z) => z.id !== 'spawn');
+  const targets = islandZones.filter((z) => z.id !== 'spawn');
   useFixture(fixture, group, {
     examine: 'A signpost. Each arm is a layer name.',
     actions: [
@@ -371,6 +381,7 @@ function Signpost({ fixture }: { fixture: Fixture }) {
             const d = Math.round(Math.hypot(z.center[0] - fixture.x, z.center[1] - fixture.z));
             g.say(`→ ${z.name} (${d} tiles)`);
           }
+          g.say('↓ The Underpass (through the trapdoor in Expressive Design)');
           g.addXp('curiosity', 5);
         },
       },
@@ -456,7 +467,7 @@ function Hut({ fixture }: { fixture: Fixture }) {
 }
 
 // ── RESET monoliths + door ───────────────────────────────────────────────────
-function Monolith({ fixture }: { fixture: Fixture }) {
+export function Monolith({ fixture }: { fixture: Fixture }) {
   const group = useRef<THREE.Group>(null);
   const strip = useRef<THREE.MeshBasicMaterial>(null);
   const boost = useRef(0);
@@ -493,11 +504,11 @@ function Monolith({ fixture }: { fixture: Fixture }) {
   });
   useFrame((state, dt) => {
     boost.current = Math.max(0, boost.current - dt * 4);
-    const beat = Math.pow(1 - ((state.clock.elapsedTime * 2.066) % 1), 4);
+    const kick = beat(state.clock.elapsedTime).kick;
     const p = runtime.player.pos;
     const near = Math.hypot(p.x - fixture.x, p.z - fixture.z) < 12 ? 1 : 0.25;
     if (strip.current) {
-      const v = 0.2 + (beat * 0.5 * near + boost.current) * 0.8;
+      const v = 0.2 + (kick * 0.5 * near + boost.current) * 0.8;
       strip.current.color.setRGB(0.39 * v + 0.05, 0.4 * v + 0.05, 0.95 * v + 0.1, THREE.SRGBColorSpace);
     }
   });
@@ -528,7 +539,7 @@ function Monolith({ fixture }: { fixture: Fixture }) {
   );
 }
 
-function Door({ fixture }: { fixture: Fixture }) {
+export function Door({ fixture }: { fixture: Fixture }) {
   const group = useRef<THREE.Group>(null);
   useReveal(fixture, group);
   const display = useMemo(() => cssFont('--font-geist-sans', 'sans-serif'), []);
@@ -933,10 +944,16 @@ export function Fixtures() {
             return <Signpost key={f.id} fixture={f} />;
           case 'hut':
             return <Hut key={f.id} fixture={f} />;
-          case 'monolith':
-            return <Monolith key={f.id} fixture={f} />;
-          case 'door':
-            return <Door key={f.id} fixture={f} />;
+          case 'figma-hub':
+            return <FigmaHub key={f.id} fixture={f} />;
+          case 'timeline':
+            return <Timeline key={f.id} fixture={f} />;
+          case 'trapdoor':
+            return <Trapdoor key={f.id} fixture={f} />;
+          case 'agents':
+            return <AgentSwitchboard key={f.id} fixture={f} />;
+          case 'cursors':
+            return <Cursors key={f.id} fixture={f} />;
           case 'fractal':
             return <FractalTree key={f.id} fixture={f} />;
           case 'pot':

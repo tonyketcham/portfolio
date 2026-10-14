@@ -59,12 +59,17 @@ Visitors can tweak these live in the inspector's **Stack** tab.
 ## Zones
 
 Give a zone an `id`, a `center` (world tiles, island centre is `[0, 0]`, keep within ~18 of it),
-a `radius`, a `biome` (`plaza | grove | concrete | garden | ruins | mushroom`) and a colour.
+a `radius`, a `biome` (`plaza | grove | concrete | garden | ruins | mushroom | canvas`) and a colour.
 A road cable from spawn is laid automatically. Keep zones from overlapping:
 `distance(a, b) > a.radius + b.radius + 3`.
 
 Hand-built set pieces (tea stall, monoliths, the fractal tree…) are positioned in
 `app/otherworld/world/map.ts` → "Hand-placed fixtures".
+
+A zone with more than three artboards lays them out in a horseshoe facing its centre
+(the Figma zone). A zone with `place: 'basement'` lives off the island: it gets no road or
+plateau, and `app/otherworld/world/basement.ts` lays out its works and fixtures (RESET, reached
+by the trapdoor in the Figma zone).
 
 ## Copy flags
 

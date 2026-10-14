@@ -269,6 +269,26 @@ test('saved overrides resolve in production without importing the editor', async
   assert.equal(compiled.profile.title, 'Published title'); assert.equal(compiled.read(), 'Published title');
 });
 
+test('copy properties on mutable runtime state stay assignable', async (t) => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'otherworld-copy-mutable-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const source = "export const runtime = { overhead: { text: '', until: 0 }, 'label': 'Hello there' }; export function say(text) { runtime.overhead.text = text; runtime.label = text; }";
+  const file = 'app/otherworld/state/runtime.ts';
+  assert(extractFields(file, source).some((f) => f.value === '' && f.copy));
+  assert(instrument(file, source, true).includes('set text(v)'));
+  await writeFile(path.join(folder, 'copy.json'), '{}');
+  const resolver = await readFile(new URL('../../content/copy-runtime.mjs', import.meta.url), 'utf8');
+  const transpile = (text) => ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+  await writeFile(path.join(folder, 'copy-runtime.cjs'), transpile(resolver));
+  await writeFile(path.join(folder, 'runtime.cjs'), transpile(instrument(file, source, false)).replace('@/content/copy-runtime.mjs', './copy-runtime.cjs'));
+  const compiled = createRequire(import.meta.url)(path.join(folder, 'runtime.cjs'));
+  assert.equal(compiled.runtime.overhead.text, '');
+  compiled.say('Hi!');
+  assert.equal(compiled.runtime.overhead.text, 'Hi!');
+  assert.equal(compiled.runtime.label, 'Hi!');
+  assert.deepEqual(Object.keys(compiled.runtime.overhead), ['text', 'until']);
+});
+
 test('development copy runtime does not import saved data that would remount the world on save', async () => {
   const runtime = await readFile(new URL('./game-runtime.mjs', import.meta.url), 'utf8');
   assert(!/import .*copy-runtime|import .*copy\.json/.test(runtime));

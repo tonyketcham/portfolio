@@ -194,7 +194,7 @@ export function TopBar() {
       <div className="ow-crumb ow-panel">
         <span className="ow-crumb-file">Untitled-1</span>
         <span className="ow-dim">›</span>
-        <span className="ow-dim">{location === 'house' ? 'House' : 'Island'}</span>
+        <span className="ow-dim">{location === 'house' ? 'House' : location === 'basement' ? 'Basement' : 'Island'}</span>
         <span className="ow-dim">›</span>
         <span style={{ color: zone?.color ?? (room ? '#d6a35c' : '#a1a1aa') }}>#</span>
         <span className="ow-crumb-zone">{room?.def.name ?? zone?.name ?? 'Canvas'}</span>

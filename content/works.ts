@@ -64,6 +64,7 @@ export interface ArtFx {
 }
 
 export type SkillId =
+  | 'fishing'
   | 'tooling'
   | 'shaders'
   | 'tea'
@@ -123,9 +124,77 @@ export const tagColors: Record<string, string> = {
   music: '#6366f1',
   data: '#a3a3a3',
   photography: '#facc15',
+  figma: '#a259ff',
+  ai: '#0acf83',
 };
 
 export const works: Work[] = [
+  // ── Figma: Expressive Design ────────────────────────────────────────────────
+  {
+    slug: 'figma-motion',
+    title: 'Figma Motion',
+    role: 'Built the timeline',
+    summary:
+      'Built the timeline in Figma Motion: the tracks, keyframes and playhead that make things move in Figma. Design engineering on Expressive Design.',
+    examine: 'A timeline. The playhead never stops, it just loops.',
+    zone: 'figma',
+    tags: ['figma', 'motion', 'design-tools'],
+    media: [{ kind: 'procedural', pattern: 'flow', palette: ['#0c0a1f', '#a259ff', '#f5f5f5'] }],
+    links: [{ label: 'Launch video', href: 'https://www.youtube.com/watch?v=l3HuAYXyOTo' }],
+    connects: ['modyfi', 'amanita'],
+    fx: { chroma: 0.15, scan: 0.1 },
+    placeholder: true,
+    draft: true,
+  },
+  {
+    slug: 'figma-motion-audio',
+    title: 'Audio on the timeline',
+    year: '2026',
+    summary: 'Sound on the Motion timeline: drop audio onto a track and cut animation to the beat.',
+    examine: 'A waveform on a track. The kick drum is coming from downstairs.',
+    zone: 'figma',
+    tags: ['figma', 'motion', 'music'],
+    media: [{ kind: 'procedural', pattern: 'contour', palette: ['#0b1020', '#1abcfe', '#e0f2fe'] }],
+    links: [{ label: 'Announcement', href: 'https://x.com/figma/status/2105335770584416309' }],
+    connects: ['figma-motion', 'reset-presents', 'p5-svelte'],
+    fx: { scan: 0.2, chroma: 0.1 },
+    placeholder: true,
+    draft: true,
+  },
+  {
+    slug: 'figma-glass',
+    title: 'Glass',
+    year: '2025',
+    role: 'UI',
+    summary: 'Did the UI for Glass: refractive, frosted, light-bending material in Figma.',
+    examine: 'A pane of glass. Everything behind it is slightly more interesting.',
+    zone: 'figma',
+    tags: ['figma', 'shaders', 'design-tools'],
+    media: [{ kind: 'procedural', pattern: 'moire', palette: ['#0f172a', '#93c5fd', '#fdf4ff'] }],
+    links: [{ label: 'Teaser', href: 'https://x.com/figma/status/1945893027488153794' }],
+    connects: ['modyfi', 'modyfi-piece-02'],
+    fx: { chroma: 0.35, displace: 0.04 },
+    skill: 'shaders',
+    placeholder: true,
+    draft: true,
+  },
+  {
+    slug: 'figma-ai-devex',
+    title: 'Agent orchestra',
+    role: 'AI devex',
+    summary:
+      'Foundational AI developer experience for the team and the wider org: skills, agent orchestration and automated review.',
+    examine: "A switchboard of agents. Most of them are reviewing each other's PRs.",
+    zone: 'figma',
+    tags: ['figma', 'ai', 'design-tools'],
+    media: [{ kind: 'procedural', pattern: 'dots', palette: ['#052e16', '#0acf83', '#ecfdf5'] }],
+    connects: ['vague-data', 'untitled-project'],
+    fx: { dither: 0.2, scan: 0.15 },
+    skill: 'prompting',
+    placeholder: true,
+    draft: true,
+  },
+
   {
     slug: 'modyfi',
     title: 'Modyfi',

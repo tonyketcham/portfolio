@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * The web: node-graph wires lying on the ground between related works, and fat
- * "bus" cables from spawn to every zone. One merged mesh, one draw call; pulses
+ * The web: node-graph wires lying on the ground between related works, fat
+ * "bus" cables from spawn to every zone, and the Figma harness (which all lights
+ * up while you stand in it). One merged mesh, one draw call; pulses
  * flow along every wire and the ones touching what you're looking at light up.
  */
 import { useFrame } from '@react-three/fiber';
@@ -28,7 +29,7 @@ export function Cables() {
     const rate = Math.min(1, dt * 8);
     world.edges.slice(0, MAX_EDGES).forEach((edge, i) => {
       const on =
-        focus.has(edge.a) || focus.has(edge.b) || (edge.kind === 'road' && g.zoneId && edge.b === `zone:${g.zoneId}`)
+        focus.has(edge.a) || focus.has(edge.b) || (edge.kind === 'road' && g.zoneId && edge.b === `zone:${g.zoneId}`) || (edge.kind === 'harness' && g.zoneId === 'figma')
           ? 255
           : 0;
       const k = i * 4;

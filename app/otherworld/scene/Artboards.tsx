@@ -120,7 +120,7 @@ function applyFx(material: ArtMaterial, work: Work, hover: number, selected: num
 }
 
 // ── upright frame ────────────────────────────────────────────────────────────
-function WorkArtboard({ placement }: { placement: WorkPlacement }) {
+export function WorkArtboard({ placement }: { placement: WorkPlacement }) {
   const { work } = placement;
   const id = `work:${work.slug}`;
   const { material, aspect, natural } = useArtMaterial(work);
@@ -156,6 +156,7 @@ function WorkArtboard({ placement }: { placement: WorkPlacement }) {
       registerInteractable({
         id,
         name: work.title,
+        catchTarget: 'frame',
         tone: 'work',
         layer: id,
         object: () => plane.current,

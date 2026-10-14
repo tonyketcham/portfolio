@@ -155,6 +155,7 @@ const islandMap: FurnitureDef = {
         [T.Soil]: '#7c5a3c',
         [T.Ruin]: '#9c968a',
         [T.DarkMoss]: '#3f5f45',
+        [T.Canvas]: '#e4e4e7',
       };
       for (let j = 0; j < SIZE; j++)
         for (let i = 0; i < SIZE; i++) {

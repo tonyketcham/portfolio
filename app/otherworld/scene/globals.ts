@@ -120,7 +120,8 @@ export function localTimeOfDay() {
 /** 0 → 1 pop-in scale for a prop at (x, z) as the reveal wave passes it. */
 export function revealScale(x: number, z: number) {
   const R = globalUniforms.uReveal.value;
-  if (R >= 80) return 1;
+  // only the island takes part in the reveal wave (not the house or the basement)
+  if (R >= 80 || Math.hypot(x, z) > 60) return 1;
   const t = Math.min(1, Math.max(0, (R - 6 - Math.hypot(x, z)) / 3));
   // ease-out-back for a little pop
   const c1 = 1.70158;

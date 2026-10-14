@@ -2,17 +2,20 @@
  * Game verbs shared by the world, the HUD, chat commands and DialKit actions.
  */
 import { workBySlug } from '@/content/works';
+import { POND } from '@/content/fishing';
 import { tweaks } from '../debug/tweaks';
 import { zoneById, zones } from '@/content/zones';
 import { getWorld, worldToTile } from '../world/map';
 import type { TilePos } from '../world/pathfinding';
-import { PLACES, type PlaceId } from '../world/places';
-import { TRACKS } from '../audio/tracks';
+import { PLACES, findPlacement, type PlaceId } from '../world/places';
+import { TRACKS, trackLocked } from '../audio/tracks';
 import { emit, sfx } from './events';
 import { ITEMS, TEAS, itemName, tabletZone, type ItemStack } from './items';
 import { playPose, runtime, sayOverhead } from './runtime';
 import { SKILLS, XP_TABLE, type XpReward } from './skills';
 import { gameState } from './store';
+import { beginCatchUse, consumeCatch } from './catch-actions';
+import { isCatch } from './items';
 
 export function giveTea(variant = Math.floor(Math.random() * TEAS.length)) {
   return gameState().addItem({ id: 'tea', variant });
@@ -35,8 +38,10 @@ export function teleportToZone(id: string) {
   if (id === 'house') return travel('house');
   const zone = zoneById.get(id);
   if (!zone) return;
+  if (zone.place) return travel(zone.place);
   const world = getWorld();
   if (id === 'spawn') return travel('island', world.spawn);
+  if (id === 'pond') return travel('island', worldToTile(...POND.entry));
   // Land just inside the zone on the side facing spawn.
   const [cx, cz] = zone.center;
   const len = Math.hypot(cx, cz) || 1;
@@ -108,8 +113,16 @@ export function applyItem(slot: number, verb: string) {
   const def = ITEMS[stack.id];
   if (verb === 'Examine') return examine(def.examine);
   if (verb === 'Drop') return dropItem(slot);
+  if (isCatch(stack.id)) {
+    if (verb === 'Use on…') return beginCatchUse(slot);
+    if (verb === def.primary) consumeCatch(slot);
+    return;
+  }
 
   switch (stack.id) {
+    case 'fishing-rod':
+      s.say('Take the rod to 404 Pond and click a bubbling fishing spot.');
+      return;
     case 'tea': {
       s.removeSlot(slot);
       const tea = TEAS[(stack.variant ?? 0) % TEAS.length];
@@ -275,8 +288,10 @@ export function runChatCommand(raw: string): boolean {
     case 'play': {
       const name = args.join(' ').toLowerCase();
       if (name) {
-        const i = TRACKS.findIndex((t) => t.id.includes(name.replace(/\s+/g, '-')) || t.name.toLowerCase().includes(name));
-        if (i < 0) s.say(`No track called "${name}". Try: ${TRACKS.map((t) => t.name).join(', ')}`, 'system');
+        // Secret tracks you haven't found don't exist yet, as far as ::music knows.
+        const known = (i: number) => !trackLocked(i, s.musicSecrets);
+        const i = TRACKS.findIndex((t, j) => known(j) && (t.id.includes(name.replace(/\s+/g, '-')) || t.name.toLowerCase().includes(name)));
+        if (i < 0) s.say(`No track called "${name}". Try: ${TRACKS.filter((_, j) => known(j)).map((t) => t.name).join(', ')}`, 'system');
         else s.playTrack(i);
       } else if (!s.plugins.sound || s.musicVolume === 0) s.playTrack(s.musicTrack);
       else {
@@ -350,14 +365,13 @@ export function runDebugAction(panel: string, path: string) {
 }
 
 
-/** Cut & paste yourself to a work on the island (via the portal if you're home), then inspect it. */
+/** Cut & paste yourself to a work wherever it hangs (via the portal if you're elsewhere), then inspect it. */
 export function travelToWork(slug: string) {
-  const world = getWorld();
-  const p = world.placements.find((pl) => pl.work.slug === slug);
-  if (!p) return;
+  const found = findPlacement(slug);
+  if (!found) return;
   const g = gameState();
   g.setTab(null);
-  travel('island', p.approach, () => {
+  travel(found.place, found.placement.approach, () => {
     const it = runtime.interactables.get(`work:${slug}`);
     const inspect = it?.actions.find((a) => a.verb === 'Inspect');
     if (inspect) inspect.run();

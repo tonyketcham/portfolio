@@ -11,7 +11,15 @@ export interface TrackDef {
   /** Shown in the Music tab, like an unlock hint. */
   blurb: string;
   build: () => Song;
+  /**
+   * A secret: hidden from the Music tab (and skipping, shuffling, ::music) until
+   * the player first walks into this place. Unlocks stick with the save.
+   */
+  secret?: string;
 }
+
+/** The club track under the Figma grove: unlocked by finding the basement. */
+export const SECRET_TRACK = 'subpixel';
 
 // ── Dot Grid Dawn ── G major, the login theme ───────────────────────────────
 const DAWN_A = `
@@ -281,6 +289,56 @@ function nodeGarden() {
     .build();
 }
 
+// ── Subpixel ── F phrygian, 124 bpm, RESET's floor under the grove ──────────
+// Dark and hypnotic, not a festival: a kick with a concrete rumble rolling off
+// it, a sub that barely moves (the root, and the flat second when it turns), one
+// acid note growling behind a filter that only ever half opens, and a dub chord
+// somewhere far off down the tunnel. Things arrive and leave every 16 bars.
+const ACID_A = 'F2 - r F2 r F2 F2 r F2 - r F2 r F2 Gb2 r';
+const ACID_B = 'F2 - r F2 r F2 F1 r F2 - r F2 r Gb2 - F2';
+const acidBars = (...bars: string[]) => bars.join(' | ') + ' |';
+
+function subpixel() {
+  const kick = { part: 'kick', pat: 'X...', unit: 0.25, oct: 4, vel: 0.72 };
+  const rumble = (vel: number) => ({ part: 'rumble', pat: 'R...', unit: 0.25, oct: 1, vel });
+  // Long offbeat sub: in on the "and", held to the next kick.
+  const sub = (vel: number) => ({ part: 'sub', pat: '..R-', unit: 0.25, oct: 1, vel });
+  const hats = (vel: number) => ({ part: 'hat', pat: 'x.xx', unit: 0.25, oct: 4, vel });
+  const ride = (vel: number) => ({ part: 'ride', pat: '..x.', unit: 0.25, oct: 4, vel });
+  const rim = (vel: number) => ({ part: 'rim', pat: '....x.......x...', unit: 0.25, oct: 4, vel });
+  // One chord every two bars, left to echo.
+  const dub = (vel: number) => ({ part: 'dub', pat: '..c.............................', unit: 0.25, oct: 3, vel });
+  // Velocity is the acid's filter: it creeps open over the track and closes again.
+  const acid = (vel: number) => ({ part: 'acid', mel: acidBars(ACID_A, ACID_A, ACID_A, ACID_B), unit: 0.25, vel });
+
+  const PEDAL = 'Fm | Fm | Fm | Fm';
+  // The only movement: half a bar on the flat second, every four.
+  const TURN = 'Fm | Fm | Fm | Fm Gbsus2';
+  return new SongBuilder('Subpixel', 124, 4, {
+    kick: { inst: 'kick', dry: true },
+    rumble: { inst: 'rumble', dry: true },
+    sub: { inst: 'sub', dry: true },
+    acid: { inst: 'acid', pan: -0.1, duck: 0.3 },
+    dub: { inst: 'dub', pan: 0.25, duck: 0.4 },
+    hat: { inst: 'hat', pan: 0.2, swing: 0.22 },
+    ride: { inst: 'ride', pan: -0.25 },
+    rim: { inst: 'rim', pan: 0.1 },
+  })
+    .section(PEDAL, [kick, rumble(0.55), hats(0.3)], 2)
+    .section(PEDAL, [kick, rumble(0.7), hats(0.36), ride(0.3)], 2)
+    .section(TURN, [kick, rumble(0.8), hats(0.4), ride(0.34), sub(0.5), acid(0.26)], 2)
+    .section(TURN, [kick, rumble(0.8), hats(0.4), ride(0.36), sub(0.62), acid(0.34), dub(0.5)], 2)
+    .section(TURN, [kick, rumble(0.8), hats(0.42), ride(0.4), sub(0.66), acid(0.42), dub(0.55), rim(0.45)], 2)
+    .section(TURN, [kick, rumble(0.85), hats(0.45), ride(0.42), sub(0.7), acid(0.5), dub(0.6), rim(0.5)], 2)
+    .section(TURN, [kick, rumble(0.8), hats(0.4), ride(0.36), sub(0.62), acid(0.4), dub(0.45), rim(0.42)], 2)
+    .section(PEDAL, [kick, rumble(0.65), hats(0.3), ride(0.26), dub(0.35)], 2)
+    .section('Fm', [
+      { part: 'kick', pat: 'X...............', unit: 0.25, oct: 4, vel: 0.72 },
+      { part: 'rumble', pat: 'R...............', unit: 0.25, oct: 1, vel: 0.6 },
+    ])
+    .build();
+}
+
 export const TRACKS: TrackDef[] = [
   { id: 'dot-grid-dawn', name: 'Dot Grid Dawn', blurb: 'Plays on login. A blank canvas and the whole day ahead.', build: dotGridDawn },
   { id: 'croissant-morning', name: 'Croissant Morning', blurb: 'Breakfast in the kitchen, crumbs on the shirt.', build: croissantMorning },
@@ -289,17 +347,74 @@ export const TRACKS: TrackDef[] = [
   { id: 'ninety-nine-cats', name: 'Ninety-Nine Cats', blurb: 'Skillcape not included. (It is.)', build: ninetyNineCats },
   { id: 'perlin-bread-shanty', name: 'Perlin Bread Shanty', blurb: 'Never the same loaf twice.', build: perlinBreadShanty },
   { id: 'node-garden', name: 'Node Garden', blurb: 'Wires across the water.', build: nodeGarden },
+  { id: SECRET_TRACK, name: 'Subpixel', blurb: 'Felt through the concrete before you hear it. 124 bpm.', build: subpixel, secret: 'basement' },
 ];
 
-export type MusicMode = 'sequence' | 'shuffle' | 'loop';
+/**
+ * Where each track plays in Area mode, like the game's music regions. An island
+ * zone with its own list takes over while you stand in it; off-zone (the roads,
+ * the beach) the place's list carries on, so walking out of a grove doesn't cut
+ * the tune. Every zone track is also in its place's list for the same reason.
+ */
+const AREA_MUSIC: Record<string, string[]> = {
+  house: ['dot-grid-dawn', 'croissant-morning', 'ninety-nine-cats', 'perlin-bread-shanty'],
+  island: ['node-garden', 'bezier-waltz', 'pixel-lavender'],
+  'zone:spawn': ['node-garden'],
+  'zone:modyfi': ['bezier-waltz'],
+  'zone:garden': ['pixel-lavender'],
+  'zone:ring': ['pixel-lavender'],
+  basement: [SECRET_TRACK],
+};
 
-/** The track after (or before) `index`. Loop only repeats when a track ends on its own. */
-export function nextTrack(index: number, mode: MusicMode, dir: 1 | -1 = 1, ended = false) {
-  const n = TRACKS.length;
-  if (mode === 'loop' && ended) return index;
+const AREA_NAMES: Record<string, string> = { house: 'the house', island: 'the island', basement: 'the basement' };
+
+const indexById = new Map(TRACKS.map((t, i) => [t.id, i]));
+const indices = (ids: string[]) => ids.flatMap((id) => (indexById.has(id) ? [indexById.get(id)!] : []));
+
+/** The area key for a place and zone: an island zone with its own music, else the place. */
+export function musicArea(location: string, zoneId: string | null) {
+  return zoneId && AREA_MUSIC[`zone:${zoneId}`] ? `zone:${zoneId}` : location;
+}
+
+/** Unlocked secret tracks, by id (`musicSecrets` in the save). */
+export type TrackUnlocks = Record<string, true>;
+
+/** A secret track the player hasn't found yet: not listed, not playable, never skipped to. */
+export function trackLocked(index: number, unlocked: TrackUnlocks) {
+  const track = TRACKS[index];
+  return !!track?.secret && !unlocked[track.id];
+}
+
+/** Track indices that belong to an area (locked secrets left out). Empty means "anything goes". */
+export function areaTracks(area: string, unlocked: TrackUnlocks) {
+  const ids = AREA_MUSIC[area] ?? AREA_MUSIC[area.startsWith('zone:') ? 'island' : area] ?? [];
+  return indices(ids).filter((i) => !trackLocked(i, unlocked));
+}
+
+/** Where a track can be heard, for the Music tab: "the house", "Modyfi Grove". */
+export function trackAreas(index: number, zoneName: (id: string) => string | undefined) {
+  const id = TRACKS[index]?.id;
+  return Object.entries(AREA_MUSIC)
+    .filter(([, ids]) => ids.includes(id))
+    .map(([area]) => (area.startsWith('zone:') ? zoneName(area.slice(5)) ?? area.slice(5) : AREA_NAMES[area] ?? area));
+}
+
+export type MusicMode = 'area' | 'sequence' | 'shuffle' | 'loop';
+
+/**
+ * The track after (or before) `index`. Loop only repeats when a track ends on
+ * its own; Area cycles through the current area's tracks.
+ */
+export function nextTrack(index: number, mode: MusicMode, dir: 1 | -1 = 1, ended = false, area?: string, unlocked: TrackUnlocks = {}) {
+  if (mode === 'loop' && ended && !trackLocked(index, unlocked)) return index;
+  const pool = mode === 'area' && area ? areaTracks(area, unlocked) : [];
+  const list = pool.length ? pool : TRACKS.flatMap((_, i) => (trackLocked(i, unlocked) ? [] : [i]));
+  const n = list.length;
+  const at = list.indexOf(index);
   if (mode === 'shuffle' && n > 1) {
     const r = Math.floor(Math.random() * (n - 1));
-    return r >= index ? r + 1 : r;
+    return list[r >= at ? r + 1 : r];
   }
-  return (index + dir + n) % n;
+  if (at < 0) return list[0];
+  return list[(at + dir + n) % n];
 }

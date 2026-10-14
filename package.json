@@ -10,7 +10,8 @@
     "dev:all": "node scripts/dev.mjs",
     "typecheck": "tsc --noEmit",
     "cms": "node scripts/cms/server.mjs",
-    "test:cms": "node --test scripts/cms/cms.test.mjs"
+    "test:cms": "node --test scripts/cms/cms.test.mjs",
+    "test:fishing": "node scripts/fishing-check.mjs"
   },
   "dependencies": {
     "@braintree/browser-detection": "2.0.2",

@@ -26,11 +26,21 @@ function fill(geo: THREE.BufferGeometry, index: number, length: number, color: T
 export function buildCableGeometry(world: WorldMap) {
   const parts: THREE.BufferGeometry[] = [];
   world.edges.slice(0, MAX_EDGES).forEach((edge, index) => {
-    const lift = edge.kind === 'road' ? 0.08 : 0.07;
-    const pts = edge.points.map(([x, z]) => new THREE.Vector3(x, heightAt(world, x, z) + lift, z));
+    const lift = edge.kind === 'road' ? 0.08 : edge.kind === 'harness' ? 0.05 : 0.07;
+    const n = edge.points.length - 1;
+    const pts = edge.points.map(([x, z], k) => {
+      let y = heightAt(world, x, z) + lift;
+      if (edge.air) {
+        // a sagging line between two heights
+        const t = k / n;
+        const [from, to, sag] = edge.air;
+        y += from + (to - from) * t - sag * 4 * t * (1 - t);
+      }
+      return new THREE.Vector3(x, y, z);
+    });
     const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
     const length = curve.getLength();
-    const radius = edge.kind === 'road' ? 0.1 : 0.045;
+    const radius = edge.kind === 'road' ? 0.1 : edge.kind === 'harness' ? (edge.air ? 0.028 : 0.034) : 0.045;
     const tube = new THREE.TubeGeometry(curve, Math.max(8, Math.ceil(length * 3)), radius, edge.kind === 'road' ? 6 : 4, false);
     const color = new THREE.Color(edge.color);
     const flat = tube.index ? tube.toNonIndexed() : tube;

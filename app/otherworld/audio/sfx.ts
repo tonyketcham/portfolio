@@ -6,6 +6,7 @@
  */
 import { on, type SfxName } from '../state/events';
 import { gameState } from '../state/store';
+import { noteKick } from './levels';
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -82,6 +83,28 @@ function play(name: SfxName, pitch = 1) {
     case 'click':
       tone('square', 880 * p, 700 * p, 0.035, 0.035);
       break;
+    // a creature talking: two quick squeaks, pitched by its voice
+    case 'chirp': {
+      const wobble = 0.85 + Math.random() * 0.3;
+      tone('triangle', 420 * p * wobble, 760 * p, 0.07, 0.05);
+      tone('sine', 700 * p, 380 * p * wobble, 0.09, 0.045, 0.075);
+      break;
+    }
+    // a gear going home: metal knock plus a low body thud
+    case 'clunk':
+      noise(0.05, 0.09, 'bandpass', 2400 * p, 900 * p);
+      tone('square', 160 * p, 70 * p, 0.09, 0.07);
+      tone('sine', 90 * p, 45 * p, 0.16, 0.1, 0.01);
+      break;
+    // synchro teeth chattering
+    case 'grind':
+      noise(0.08, 0.05, 'bandpass', 3200 * p, 1800 * p);
+      tone('sawtooth', 210 * p, 190 * p, 0.07, 0.025);
+      break;
+    case 'spawn':
+      [330, 440, 554, 740, 988].forEach((f, i) => tone('triangle', f, f * 1.5, 0.12, 0.05, i * 0.05));
+      noise(0.4, 0.04, 'bandpass', 800, 5000, 0.05);
+      break;
     case 'menu':
       tone('square', 660, 660, 0.03, 0.03);
       tone('square', 990, 990, 0.04, 0.03, 0.035);
@@ -133,6 +156,7 @@ function play(name: SfxName, pitch = 1) {
       tone('triangle', 220, 880, 2.4, 0.03, 0.2);
       break;
     case 'kick':
+      if (ctx) noteKick(ctx, ctx.currentTime, 0.8); // so the lights pulse on it too
       tone('sine', 160, 42, 0.14, 0.22);
       noise(0.015, 0.08, 'highpass', 2000, 2000);
       break;

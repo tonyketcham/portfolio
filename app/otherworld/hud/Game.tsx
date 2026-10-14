@@ -9,6 +9,8 @@ import { skillById } from '../state/skills';
 import { gameState, useGame } from '../state/store';
 import { parseChatEffects } from './chatEffects';
 import { DIALOGUE, type Speaker } from './dialogues';
+import type { CreatureSpec } from '../creatures/spec';
+import { CreaturePortrait } from './CreaturePortrait';
 import { CursorHead, SkillGlyph } from './icons';
 import { TONE_COLOR } from './util';
 
@@ -183,7 +185,13 @@ export function XpDrops() {
 }
 
 // ── dialogue ─────────────────────────────────────────────────────────────────
-function ChatHead({ speaker }: { speaker: Speaker }) {
+function ChatHead({ speaker, creature }: { speaker: Speaker; creature?: CreatureSpec }) {
+  if (speaker === 'creature' && creature)
+    return (
+      <div className="ow-head ow-head-creature">
+        <CreaturePortrait spec={creature} size={64} />
+      </div>
+    );
   if (speaker === 'tony')
     return (
       <div className="ow-head ow-head-tony">
@@ -204,7 +212,7 @@ function ChatHead({ speaker }: { speaker: Speaker }) {
   );
 }
 
-const NAMES: Record<Speaker, string> = { tony: 'Tony', player: 'Toe Knee', card: 'Business card', narrator: '' };
+const NAMES: Record<Speaker, string> = { tony: 'Tony', player: 'Toe Knee', card: 'Business card', narrator: '', creature: '' };
 
 export function Dialogue() {
   const nodeId = useGame((s) => s.dialogue);
@@ -236,8 +244,8 @@ export function Dialogue() {
   };
 
   return (
-    <div className="ow-dialogue ow-panel" role="dialog" aria-label={`${NAMES[node.speaker]} says`}>
-      <ChatHead speaker={node.options ? 'player' : node.speaker} />
+    <div className="ow-dialogue ow-panel" role="dialog" aria-label={`${node.name ?? NAMES[node.speaker]} says`}>
+      <ChatHead speaker={node.options ? 'player' : node.speaker} creature={node.creature} />
       <div className="ow-dialogue-body">
         {node.options ? (
           <>
@@ -260,7 +268,7 @@ export function Dialogue() {
           </>
         ) : (
           <button className="ow-dialogue-text" onClick={advance}>
-            <div className="ow-dialogue-name">{NAMES[node.speaker]}</div>
+            <div className="ow-dialogue-name">{node.name ?? NAMES[node.speaker]}</div>
             <p>{node.text.slice(0, node.options ? undefined : shown)}</p>
             <span className="ow-dialogue-continue">{done ? 'Click here to continue' : '…'}</span>
           </button>

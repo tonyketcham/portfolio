@@ -11,6 +11,7 @@ import { displayName } from '../scene/Interaction';
 import { on } from '../state/events';
 import { prayerById } from '../state/prayers';
 import { runtime } from '../state/runtime';
+import { itemName } from '../state/items';
 import { gameState, useGame } from '../state/store';
 import { charOffset, chatColorAt, isPerChar, parseChatEffects, type ChatEffects } from './chatEffects';
 import { PixelSprite } from './icons';
@@ -279,8 +280,9 @@ export function MouseoverText() {
       return;
     }
     const it = runtime.hoverId ? runtime.interactables.get(runtime.hoverId) : undefined;
+    const using = gameState().usingCatch;
     const next = it
-      ? { verb: it.actions[0]?.verb ?? 'Examine', target: displayName(it), color: TONE_COLOR[it.tone], more: it.actions.length + 1 }
+      ? { verb: using ? `Use ${itemName(using.stack)} on` : it.actions[0]?.verb ?? 'Examine', target: displayName(it), color: TONE_COLOR[it.tone], more: using ? 0 : it.actions.length + 1 }
       : runtime.hoverTile
         ? { verb: 'Walk here', more: 0 }
         : null;

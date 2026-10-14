@@ -7,13 +7,17 @@
  * A road (a fat node-graph cable) is laid from spawn to every zone automatically.
  */
 
+import { POND } from './fishing';
+
 export type Biome =
   | 'plaza' // flagstones, the spawn artboard lives here
   | 'grove' // mossy, dense shader trees
   | 'concrete' // poured concrete, underground venue vibes
   | 'garden' // tilled soil + grass
   | 'ruins' // cracked stone, broken frames
-  | 'mushroom'; // dark moss, fairy ring
+  | 'mushroom' // dark moss, fairy ring
+  | 'canvas' // light-grey design canvas, multiplayer cursors
+  | 'pond'; // a tucked-away fishing backwater
 
 export interface Zone {
   id: string;
@@ -26,6 +30,13 @@ export interface Zone {
   biome: Biome;
   /** Accent used for its road, minimap blob and layer chip. */
   color: string;
+  /** Discover on foot, without a road or a wire back to the hub. */
+  secluded?: boolean;
+  /**
+   * Off-island zones live in another place (reached by ladder, not by road).
+   * Their `center` and `radius` are ignored: that place lays them out.
+   */
+  place?: 'basement';
 }
 
 export const zones: Zone[] = [
@@ -48,13 +59,13 @@ export const zones: Zone[] = [
     color: '#e879f9',
   },
   {
-    id: 'reset',
-    name: 'The Underpass',
-    arrival: 'You can feel a kick drum through the concrete.',
-    center: [14, -9],
-    radius: 7,
-    biome: 'concrete',
-    color: '#6366f1',
+    id: 'figma',
+    name: 'Expressive Design',
+    arrival: 'Every wire on the island ends up here eventually. Something is being orchestrated.',
+    center: [16, -10],
+    radius: 8.5,
+    biome: 'canvas',
+    color: '#a259ff',
   },
   {
     id: 'garden',
@@ -83,8 +94,31 @@ export const zones: Zone[] = [
     biome: 'mushroom',
     color: '#ef4444',
   },
+  {
+    id: 'pond',
+    name: '404 Pond',
+    arrival: 'A quiet backwater. Everything that went missing ends up here.',
+    center: POND.center,
+    radius: POND.radius,
+    biome: 'pond',
+    color: '#67b8c8',
+    secluded: true,
+  },
+  {
+    id: 'reset',
+    name: 'The Underpass',
+    arrival: 'You can feel a kick drum through the concrete.',
+    center: [0, 0],
+    radius: 0,
+    biome: 'concrete',
+    color: '#6366f1',
+    place: 'basement',
+  },
 ];
 
 export type ZoneId = (typeof zones)[number]['id'];
 
 export const zoneById = new Map(zones.map((zone) => [zone.id, zone]));
+
+/** The zones laid out on the island itself (plateaus, roads, the signpost). */
+export const islandZones = zones.filter((zone) => !zone.place);

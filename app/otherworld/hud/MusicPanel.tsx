@@ -2,16 +2,20 @@
 
 import { useRef } from 'react';
 import { musicPosition, songFor } from '../audio/music';
-import { TRACKS, type MusicMode } from '../audio/tracks';
+import { zoneById } from '@/content/zones';
+import { TRACKS, areaTracks, musicArea, trackAreas, trackLocked, type MusicMode } from '../audio/tracks';
 import { sfx } from '../state/events';
 import { useGame } from '../state/store';
 import { useRaf } from './util';
 
 const MODES: { id: MusicMode; label: string }[] = [
+  { id: 'area', label: 'Area' },
   { id: 'sequence', label: 'In order' },
   { id: 'shuffle', label: 'Shuffle' },
   { id: 'loop', label: 'Loop' },
 ];
+
+const zoneName = (id: string) => zoneById.get(id)?.name;
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -24,6 +28,8 @@ export function MusicPanel() {
   const volume = useGame((s) => s.musicVolume);
   const mode = useGame((s) => s.musicMode);
   const heard = useGame((s) => s.musicHeard);
+  const secrets = useGame((s) => s.musicSecrets);
+  const area = useGame((s) => musicArea(s.location, s.zoneId));
   const playTrack = useGame((s) => s.playTrack);
   const skipTrack = useGame((s) => s.skipTrack);
   const togglePaused = useGame((s) => s.toggleMusicPaused);
@@ -44,6 +50,8 @@ export function MusicPanel() {
   const unlocked = TRACKS.filter((t) => heard[t.id]).length;
   const silent = !sound || volume === 0;
   const playing = !silent && !paused;
+  const here = mode === 'area' ? new Set(areaTracks(area, secrets)) : null;
+  const areaName = area.startsWith('zone:') ? zoneName(area.slice(5)) : area === 'house' ? 'The house' : area === 'basement' ? 'The basement' : 'The island';
 
   return (
     <div className="ow-music">
@@ -53,6 +61,7 @@ export function MusicPanel() {
         <div className="ow-music-bar" aria-hidden>
           <i ref={barRef} />
         </div>
+        <span className="ow-music-area">{mode === 'area' ? `Area: ${areaName}` : ''}</span>
         <span className="ow-music-time" ref={timeRef} />
       </div>
 
@@ -108,26 +117,37 @@ export function MusicPanel() {
       </div>
 
       <ol className="ow-music-list">
-        {TRACKS.map((t, i) => (
-          <li key={t.id}>
-            <button
-              className="ow-quest"
-              data-status={i === track && playing ? 'seen' : heard[t.id] ? 'done' : 'new'}
-              aria-current={i === track ? 'true' : undefined}
-              title={t.blurb}
-              onClick={() => {
-                playTrack(i);
-                sfx('click');
-              }}
-            >
-              <span>
-                {i === track && playing ? '♪ ' : ''}
-                {t.name}
-              </span>
-              <em>{clock(songFor(i).length)}</em>
-            </button>
-          </li>
-        ))}
+        {TRACKS.map((t, i) =>
+          trackLocked(i, secrets) ? (
+            // A secret: a locked row that gives nothing away.
+            <li key={t.id}>
+              <button className="ow-quest" data-status="locked" disabled title="Locked. Somewhere, something is thumping.">
+                <span>???</span>
+                <em>?:??</em>
+              </button>
+            </li>
+          ) : (
+            <li key={t.id}>
+              <button
+                className="ow-quest"
+                data-status={i === track && playing ? 'seen' : heard[t.id] ? 'done' : 'new'}
+                aria-current={i === track ? 'true' : undefined}
+                data-here={here?.has(i) || undefined}
+                title={`${t.blurb} Plays in ${trackAreas(i, zoneName).join(', ')}.`}
+                onClick={() => {
+                  playTrack(i);
+                  sfx('click');
+                }}
+              >
+                <span>
+                  {i === track && playing ? '♪ ' : here?.has(i) ? '▸ ' : ''}
+                  {t.name}
+                </span>
+                <em>{clock(songFor(i).length)}</em>
+              </button>
+            </li>
+          )
+        )}
       </ol>
 
       {!sound && (
@@ -140,7 +160,10 @@ export function MusicPanel() {
         </p>
       )}
       <p className="ow-hint">
-        Unlocked {unlocked} of {TRACKS.length}. Every note is synthesised live in WebAudio, no samples. The tracks play in order and loop.
+        Unlocked {unlocked} of {TRACKS.length}. Every note is synthesised live in WebAudio, no samples.{' '}
+        {mode === 'area'
+          ? 'In Area mode the music follows you: the house, the island and some groves have their own tunes (▸ plays here).'
+          : 'The tracks play in order and loop.'}
       </p>
     </div>
   );

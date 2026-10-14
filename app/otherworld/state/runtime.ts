@@ -41,6 +41,8 @@ export interface Interactable {
   dimensions?: () => string;
   /** Only reachable from the long-press / right-click menu (floors, big surfaces). */
   passive?: boolean;
+  /** A discoverable reaction when a pond catch is used on this object. */
+  catchTarget?: 'frame' | 'portal' | 'tea' | 'cat' | 'machine';
 }
 
 /** What the player's body is doing besides walking (sitting, hammering, praying…). */

@@ -1,7 +1,8 @@
 import { profile } from '@/content/profile';
+import type { CreatureSpec } from '../creatures/spec';
 import { gameState } from '../state/store';
 
-export type Speaker = 'tony' | 'player' | 'card' | 'narrator';
+export type Speaker = 'tony' | 'player' | 'card' | 'narrator' | 'creature';
 
 export interface DialogueOption {
   label: string;
@@ -16,6 +17,10 @@ export interface DialogueNode {
   options?: DialogueOption[];
   /** Runs once when the node is shown. */
   enter?: () => void;
+  /** Overrides the speaker's name (visitor-made creatures). */
+  name?: string;
+  /** Draws the chat head for a creature speaker. */
+  creature?: CreatureSpec;
 }
 
 const giveCard = () => {
@@ -27,6 +32,7 @@ const giveCard = () => {
   if (g.addItem({ id: 'card' })) g.say('Tony hands you a business card.');
 };
 
+/** Static conversations, plus creature ones written in at talk time (see ../creatures/actions). */
 export const DIALOGUE: Record<string, DialogueNode> = {
   tony: { speaker: 'tony', text: 'Oh! Same hair, same glasses. Is that my croissant shirt? Welcome to Untitled-1, I suppose.', next: 'tony-menu' },
   'tony-menu': {

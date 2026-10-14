@@ -12,7 +12,13 @@ export type ItemId =
   | 'coins'
   | 'phone'
   | 'tinderbox'
-  | 'tablet';
+  | 'tablet'
+  | 'fishing-rod'
+  | 'missing-texture'
+  | 'broken-link'
+  | 'old-jpeg'
+  | 'undefined-fish'
+  | 'flash-site';
 
 export interface ItemDef {
   id: ItemId;
@@ -25,7 +31,47 @@ export interface ItemDef {
   palette: Record<string, string>;
 }
 
+export const CATCH_IDS = ['missing-texture', 'broken-link', 'old-jpeg', 'undefined-fish', 'flash-site'] as const;
+export type CatchId = (typeof CATCH_IDS)[number];
+export const isCatch = (id: ItemId): id is CatchId => (CATCH_IDS as readonly ItemId[]).includes(id);
+
 export const ITEMS: Record<ItemId, ItemDef> = {
+  'fishing-rod': {
+    id: 'fishing-rod', name: 'Fishing rod', primary: 'Use',
+    examine: 'A bamboo rod with a cursor-shaped hook. For retrieving things the internet lost.',
+    sprite: ['......bl', '.....b.l', '....b..l', '...b...l', '..b....l', '.b.....l', 'b.....hh', '......h.'],
+    palette: { b: '#d6a35c', l: '#d4d4d8', h: '#94a3b8' },
+  },
+  'missing-texture': {
+    id: 'missing-texture', name: 'Missing texture', primary: 'Wear',
+    examine: 'A single-use emergency skin. Wear it, or try patching a frame with it.',
+    sprite: ['mmmmkkkk', 'mmmmkkkk', 'mmmmkkkk', 'mmmmkkkk', 'kkkkmmmm', 'kkkkmmmm', 'kkkkmmmm', 'kkkkmmmm'],
+    palette: { m: '#ff00ff', k: '#18181b' },
+  },
+  'broken-link': {
+    id: 'broken-link', name: 'Broken link', primary: 'Follow',
+    examine: 'A single-use hyperlink to absolutely nowhere. Portals might know what to do with it.',
+    sprite: ['..ccc...', '.c...c..', 'c...c...', 'c..c....', '....c..c', '...c...c', '..c...c.', '...ccc..'],
+    palette: { c: '#7dd3fc' },
+  },
+  'old-jpeg': {
+    id: 'old-jpeg', name: 'Ancient JPEG', primary: 'Crunch',
+    examine: 'Crunchy, single-use compression artifacts. Try steeping them at a tea stall or kettle.',
+    sprite: ['wwwwwwww', 'wbbbbyyw', 'wbbbbyyw', 'wbbbbbbw', 'wbggbbbw', 'wgggddbw', 'wddddddw', 'wwwwwwww'],
+    palette: { w: '#f5e6c8', b: '#6a8db2', y: '#fbbf24', g: '#7c9a4b', d: '#8b6b4b' },
+  },
+  'undefined-fish': {
+    id: 'undefined-fish', name: 'undefined', primary: 'Release',
+    examine: 'An actual fish. Release it into the air, or introduce it to the cat. Either uses it up.',
+    sprite: ['........', '....cc..', 'c..cccc.', 'ccccckcc', 'cccccccc', 'c..cccc.', '....cc..', '........'],
+    palette: { c: '#a5f3fc', k: '#164e63' },
+  },
+  'flash-site': {
+    id: 'flash-site', name: 'Preserved Flash website', primary: 'Open',
+    examine: 'One last intro before it crashes. Try loading it into a design machine or the organ.',
+    sprite: ['rrrrrrrr', 'rwwwwwrr', 'rwrrrrrr', 'rwwwwrrr', 'rwrrrrrr', 'rwrrrrrr', 'rrrrrrrr', 'rrrrrrrr'],
+    palette: { r: '#b91c1c', w: '#fafafa' },
+  },
   tea: {
     id: 'tea',
     name: 'Cup of tea',
@@ -125,7 +171,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
 };
 
 /** Zone ids a teleport tablet can point at; the tablet's `variant` indexes this. */
-export const TABLET_ZONES = ['house', 'spawn', 'modyfi', 'reset', 'garden', 'ruins', 'ring'] as const;
+export const TABLET_ZONES = ['house', 'spawn', 'modyfi', 'reset', 'garden', 'ruins', 'ring', 'figma'] as const;
 
 export function tabletZone(stack: ItemStack) {
   return TABLET_ZONES[(stack.variant ?? 0) % TABLET_ZONES.length];

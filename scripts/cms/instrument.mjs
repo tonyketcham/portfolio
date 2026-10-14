@@ -7,6 +7,8 @@ export function instrument(file, source, development) {
   const fields = extractFields(file, source).filter((field) => field.copy);
   const byStart = new Map(fields.map((field) => [field.start, field]));
   const call = (field, value) => `__owCopy(${JSON.stringify(field.key)}, ${value}${development ? ', ' + JSON.stringify({ key: field.key, file: field.file, line: field.line, context: field.context, kind: field.kind, fallback: field.value }) : ''})`;
+  // HTML can't live inside SVG text: there, copy stays live but renders as a bare string (no tracing span).
+  const inSvgText = (node) => ts.isJsxElement(node.parent) && ['text', 'tspan', 'textPath', 'title'].includes(node.parent.openingElement.tagName.getText(ast));
   function rewrite(node) {
     const start = node.getStart(ast), end = node.end;
     const field = byStart.get(start);
@@ -34,10 +36,10 @@ export function instrument(file, source, development) {
       const result = call(field, JSON.stringify(field.value));
       return ts.isJsxAttribute(node.parent) ? `{${result}}` : result;
     }
-    if (ts.isJsxText(node) && field) return development
+    if (ts.isJsxText(node) && field) return development && !inSvgText(node)
       ? `{__owValue(${call(field, JSON.stringify(field.value))}, [${JSON.stringify(field.key)}])}`
       : `{${call(field, JSON.stringify(field.value))}}`;
-    if (development && ts.isJsxExpression(node) && node.expression && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))) {
+    if (development && ts.isJsxExpression(node) && node.expression && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent)) && !inSvgText(node)) {
       return `{__owCaptured(() => (${rewrite(node.expression)}))}`;
     }
     if (development && ts.isImportSpecifier(node) && node.name.text === 'useFrame' && node.parent.parent.parent.moduleSpecifier.text === '@react-three/fiber') return 'useFrame';
@@ -57,7 +59,12 @@ export function instrument(file, source, development) {
     // Runtime object copy remains live without rebuilding the scene's ownership.
     if (ts.isPropertyAssignment(node) && fields.some((f) => f.start >= node.initializer.getStart(ast) && f.end <= node.initializer.end)) {
       const initializer = rewrite(node.initializer);
-      if (ts.isStringLiteral(node.initializer) || ts.isTemplateExpression(node.initializer) || ts.isNoSubstitutionTemplateLiteral(node.initializer)) result = `get ${node.name.getText()}() { return ${initializer}; }`;
+      if (ts.isStringLiteral(node.initializer) || ts.isTemplateExpression(node.initializer) || ts.isNoSubstitutionTemplateLiteral(node.initializer)) {
+        // Assigning (runtime state like `overhead.text = …`) pins a plain value in place of the live copy.
+        const name = node.name.getText();
+        const keyName = ts.isIdentifier(node.name) ? JSON.stringify(name) : ts.isComputedPropertyName(node.name) ? node.name.expression.getText(ast) : name;
+        result = `get ${name}() { return ${initializer}; }, set ${name}(v) { Object.defineProperty(this, ${keyName}, { value: v, writable: true, enumerable: true, configurable: true }); }`;
+      }
     }
     return result;
   }

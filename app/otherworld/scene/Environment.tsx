@@ -9,6 +9,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three/webgpu';
 import { tweaks } from '../debug/tweaks';
+import { BASEMENT, basementCentre } from '../world/basement';
 import { getHouse } from '../world/places';
 import { ISLAND_RADIUS } from '../world/map';
 import { createSkyMaterial, createVoidMaterial, voidUniforms } from '../shaders/environment';
@@ -36,6 +37,11 @@ function CanvasVoid() {
       voidUniforms.selHalf.value.set(L.width / 2 + 1.5, L.height / 2 + 1.5);
       voidUniforms.origin.value.copy(voidUniforms.selCenter.value);
       voidUniforms.sel.value = gameState().buildMode ? 1 : 0.65;
+    } else if (runtime.location === 'basement') {
+      voidUniforms.selCenter.value.set(...basementCentre);
+      voidUniforms.selHalf.value.set(BASEMENT.w / 2 + 1.5, BASEMENT.h / 2 + 1.5);
+      voidUniforms.origin.value.copy(voidUniforms.selCenter.value);
+      voidUniforms.sel.value = 0.65;
     } else {
       voidUniforms.selCenter.value.set(0, 0);
       voidUniforms.selHalf.value.set(ISLAND_RADIUS + 2.5, ISLAND_RADIUS + 2.5);
@@ -111,9 +117,12 @@ function WorldClock() {
     // Fog rides with the zoom so the player's surroundings are always clear.
     const zoomOffset = Math.max(0, runtime.cam.distance - 15);
     const inHouse = runtime.location === 'house';
-    globalUniforms.uFogNear.value = t.World.fogNear + zoomOffset + (inHouse ? 8 : 0);
-    globalUniforms.uFogFar.value = t.World.fogFar + zoomOffset * 1.4 + (inHouse ? 20 : 0);
+    // Underground: no sun, a dim cold fill, and the fog goes nearly black.
+    const below = runtime.location === 'basement';
+    globalUniforms.uFogNear.value = t.World.fogNear + zoomOffset + (inHouse || below ? 8 : 0);
+    globalUniforms.uFogFar.value = t.World.fogFar + zoomOffset * 1.4 + (inHouse || below ? 20 : 0);
     fog.color.copy(sky.fog);
+    if (below) fog.color.setRGB(0.008, 0.007, 0.016);
     fog.near = globalUniforms.uFogNear.value;
     fog.far = globalUniforms.uFogFar.value;
 
@@ -121,12 +130,12 @@ function WorldClock() {
     if (hemi.current) {
       hemi.current.color.copy(sky.top).lerp(white, 0.55);
       hemi.current.groundColor.copy(sky.ambient).multiplyScalar(0.7);
-      hemi.current.intensity = t.World.sky * (0.85 + (1 - sky.night) * 0.4);
+      hemi.current.intensity = t.World.sky * (0.85 + (1 - sky.night) * 0.4) * (below ? 0.7 : 1);
     }
     if (sun.current) {
       const s = sun.current;
       s.color.copy(sky.sun);
-      s.intensity = sky.sunIntensity * t.World.sun * (inHouse ? t.House.interiorSun : 1);
+      s.intensity = sky.sunIntensity * t.World.sun * (inHouse ? t.House.interiorSun : below ? 0.06 : 1);
       // the shadow frustum follows the player
       s.target.position.set(P.x, 0, P.z);
       s.position.copy(s.target.position).addScaledVector(sky.sunDir, 60);
